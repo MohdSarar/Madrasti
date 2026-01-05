@@ -1,22 +1,10 @@
 import type { Request, Response } from "express";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { HttpError } from "../utils/http.js";
-import {
-  findUserByEmail,
-  markUserLastLogin,
-  setUser2faSecret,
-  enableUser2fa,
-  findUserById,
-} from "../repositories/userRepo.js";
+import { findUserByEmail, markUserLastLogin, setUser2faSecret, enableUser2fa, findUserById } from "../repositories/userRepo.js";
 import { verifyPassword } from "../services/password.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../services/jwt.js";
-import {
-  createSession,
-  updateSessionToken,
-  deleteSessionByToken,
-  getSessionByToken,
-  countActiveSessions,
-} from "../repositories/sessionRepo.js";
+import { createSession, updateSessionToken, deleteSessionByToken, getSessionByToken, countActiveSessions } from "../repositories/sessionRepo.js";
 import { config } from "../config.js";
 import { isStaffRole } from "../domain/roles.js";
 import { generateTotpSecret, otpauthToQrDataUrl, verifyTotp } from "../services/totp.js";
@@ -25,14 +13,31 @@ import { getSmsProvider } from "../services/smsProvider.js";
 
 function deviceInfoFromReq(req: Request) {
   return {
-    ip: req.ip,
+    ip: req.ip ?? null,
     user_agent: req.header("user-agent") ?? null,
     x_forwarded_for: req.header("x-forwarded-for") ?? null,
   };
 }
 
+type LoginBody = {
+  email: string;
+  password: string;
+  totp?: string;
+  school_slug?: string;
+};
+
+type RefreshBody = {
+  refresh_token: string;
+};
+
+type PhoneRequestOtpBody = { phone: string };
+
+type PhoneVerifyOtpBody = { request_id: string; phone: string; code: string };
+
+type Verify2faBody = { token: string };
+
 export const login = asyncHandler(async (req: Request, res: Response) => {
-  const { email, password, totp } = req.body as any;
+  const { email, password, totp } = req.body as LoginBody;
 
   const user = await findUserByEmail(email);
   if (!user || !user.is_active || !user.password_hash) {
@@ -52,7 +57,6 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   const has2fa = Boolean(user.two_factor_enabled && user.two_factor_secret);
 
   let twoFactorOk = false;
-
   if (staff2faRequired) {
     if (!has2fa) {
       // allow login but mark 2fa false, client must setup/verify
@@ -93,7 +97,6 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
   // 3) store real token hash
   await updateSessionToken(session.id, refreshToken);
 
-  // 4) sign access token
   const accessToken = signAccessToken({
     sub: user.id,
     school_id: user.school_id ?? null,
@@ -104,7 +107,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 
   await markUserLastLogin(user.id);
 
-  return res.json({
+  res.json({
     access_token: accessToken,
     refresh_token: refreshToken,
     token_type: "Bearer",
@@ -115,7 +118,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const refresh = asyncHandler(async (req: Request, res: Response) => {
-  const { refresh_token } = req.body as any;
+  const { refresh_token } = req.body as RefreshBody;
   const payload = verifyRefreshToken(refresh_token);
 
   const session = await getSessionByToken(refresh_token);
@@ -132,11 +135,10 @@ export const refresh = asyncHandler(async (req: Request, res: Response) => {
     school_id: user.school_id ?? null,
     role: user.role,
     preferred_language: user.preferred_language,
-    // access token indicates 2FA enabled; verification still happens at login
-    two_factor: Boolean(user.two_factor_enabled),
+    two_factor: Boolean(user.two_factor_enabled), // access token indicates 2FA enabled; verification still happens at login
   });
 
-  return res.json({
+  res.json({
     access_token: accessToken,
     token_type: "Bearer",
     expires_in: config.jwt.accessTtlSeconds,
@@ -144,10 +146,10 @@ export const refresh = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const logout = asyncHandler(async (req: Request, res: Response) => {
-  const { refresh_token } = req.body as any;
+  const { refresh_token } = req.body as RefreshBody;
   if (!refresh_token) throw new HttpError(400, "BAD_REQUEST", "refresh_token required");
   await deleteSessionByToken(refresh_token);
-  return res.json({ ok: true });
+  res.json({ ok: true });
 });
 
 export const setup2fa = asyncHandler(async (req: Request, res: Response) => {
@@ -162,7 +164,7 @@ export const setup2fa = asyncHandler(async (req: Request, res: Response) => {
 
   const qr = secret.otpauth_url ? await otpauthToQrDataUrl(secret.otpauth_url) : null;
 
-  return res.json({
+  res.json({
     secret_base32: secret.base32,
     otpauth_url: secret.otpauth_url,
     qr_data_url: qr,
@@ -171,42 +173,29 @@ export const setup2fa = asyncHandler(async (req: Request, res: Response) => {
 
 export const verify2fa = asyncHandler(async (req: Request, res: Response) => {
   if (!req.auth) throw new HttpError(401, "AUTH_MISSING", "Not authenticated");
-  const { token } = req.body as any;
-
+  const { token } = req.body as Verify2faBody;
   const user = await findUserById(req.auth.userId);
-  if (!user || !user.two_factor_secret) {
-    throw new HttpError(400, "TWO_FACTOR_NOT_SETUP", "2FA not setup");
-  }
+  if (!user || !user.two_factor_secret) throw new HttpError(400, "TWO_FACTOR_NOT_SETUP", "2FA not setup");
 
   const ok = verifyTotp(token, user.two_factor_secret);
   if (!ok) throw new HttpError(401, "TWO_FACTOR_INVALID", "Invalid TOTP");
 
   await enableUser2fa(user.id);
 
-  return res.json({ ok: true });
+  res.json({ ok: true });
 });
 
 export const requestPhoneOtp = asyncHandler(async (req: Request, res: Response) => {
-  const { phone } = req.body as any;
-
-  if (!phone) throw new HttpError(400, "BAD_REQUEST", "phone required");
-
+  const { phone } = req.body as PhoneRequestOtpBody;
   const code = generateOtpCode();
   const { requestId } = await storeOtp(phone, code);
   await getSmsProvider().sendOtp(phone, code);
-
-  return res.json({ request_id: requestId, ttl_seconds: config.otpCodeTtlSeconds });
+  res.json({ request_id: requestId, ttl_seconds: config.otpCodeTtlSeconds });
 });
 
 export const verifyPhoneOtp = asyncHandler(async (req: Request, res: Response) => {
-  const { request_id, phone, code } = req.body as any;
-
-  if (!request_id || !phone || !code) {
-    throw new HttpError(400, "BAD_REQUEST", "request_id, phone, code required");
-  }
-
+  const { request_id, phone, code } = req.body as PhoneVerifyOtpBody;
   const ok = await verifyOtp(request_id, phone, code);
   if (!ok) throw new HttpError(401, "OTP_INVALID", "Invalid OTP");
-
-  return res.json({ ok: true });
+  res.json({ ok: true });
 });

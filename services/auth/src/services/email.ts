@@ -6,5 +6,6 @@ import { logger } from "../logger.js";
  * Later: integrate SendGrid/Mailgun/SES.
  */
 export async function sendEmail(to: string, subject: string, body: string): Promise<void> {
-  logger.info("MOCK EMAIL", { to, subject, body });
+  logger.info({ to, subject, body }, "MOCK EMAIL");
+
 }
