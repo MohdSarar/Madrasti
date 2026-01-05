@@ -25,7 +25,9 @@ export function buildApp() {
   app.use(requestLogger);
   app.use(metricsMiddleware);
 
-  app.use(tenantMiddleware);
+  app.use((req, res, next) => {
+    void tenantMiddleware(req, res, next);
+  });
 
   app.use(buildRoutes());
 

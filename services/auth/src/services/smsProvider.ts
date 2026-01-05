@@ -10,9 +10,10 @@ export interface SmsProvider {
 }
 
 export class MockSmsProvider implements SmsProvider {
-  async sendOtp(phone: string, code: string): Promise<void> {
+  sendOtp(phone: string, code: string): Promise<void> {
     logger.info({ phone, code }, "MOCK SMS OTP");
-  }
+      return Promise.resolve();
+    }
 }
 
 export function getSmsProvider(): SmsProvider {

@@ -1,48 +1,70 @@
-// services/auth/eslint.config.js
+// Step 2 ESLint: TypeScript-aware (type-checked) for src/, pragmatic for scripts/ and test/
+// The audit requirement is *type-aware ESLint*, not style-policing. We keep the
+// security/type-safety rules for runtime code, and relax noisy rules for tests/scripts.
+
 import js from "@eslint/js";
-import globals from "globals";
-import jest from "eslint-plugin-jest";
 import tseslint from "typescript-eslint";
 
-export default [
-  // 1) Enterprise: ignore build artifacts & vendor dirs
-  {
-    ignores: ["dist/**", "coverage/**", "node_modules/**"],
-  },
+export default tseslint.config(
+  { ignores: ["dist/**", "node_modules/**", "coverage/**"] },
 
-  // 2) Base JS recommended
+  // Base JS rules
   js.configs.recommended,
 
-  // 3) TypeScript recommended (parser + rules)
-  ...tseslint.configs.recommended,
+  // TypeScript (with type information)
+  ...tseslint.configs.recommendedTypeChecked,
 
-  // 4) Project rules for TS files
   {
-    files: ["**/*.ts"],
     languageOptions: {
-      ecmaVersion: "latest",
-      sourceType: "module",
-      globals: {
-        ...globals.node, // process, __dirname, etc.
+      parserOptions: {
+        // Type-aware rules need a project.
+        project: true,
+        tsconfigRootDir: import.meta.dirname,
       },
     },
+  },
+
+  // Default: apply stricter rules only to src/
+  {
+    files: ["src/**/*.ts"],
     rules: {
-      // enterprise pragmatic defaults
+      // Keep type-safety where it matters.
+      "@typescript-eslint/no-unsafe-assignment": "error",
+      "@typescript-eslint/no-unsafe-member-access": "error",
+      "@typescript-eslint/no-unsafe-call": "error",
+      "@typescript-eslint/no-unsafe-argument": "error",
+
+      // Avoid opinionated churn.
+      "@typescript-eslint/consistent-type-definitions": "off",
+      "@typescript-eslint/prefer-nullish-coalescing": "off",
+    },
+  },
+
+  // Tests: allow some pragmatic typing (supertest bodies are often `any`).
+  {
+    files: ["test/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
       "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/require-await": "off",
+      "@typescript-eslint/consistent-type-definitions": "off",
     },
   },
 
-  // 5) Jest tests only
+  // Scripts: pragmatic as well.
   {
-    files: ["test/**/*.ts", "**/*.test.ts"],
-    plugins: { jest },
-    languageOptions: {
-      globals: {
-        ...globals.jest, // describe/it/test/expect/beforeAll...
-      },
-    },
+    files: ["scripts/**/*.ts"],
     rules: {
-      ...jest.configs.recommended.rules,
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/require-await": "off",
+      "@typescript-eslint/consistent-type-definitions": "off",
     },
-  },
-];
+  }
+);

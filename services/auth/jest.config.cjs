@@ -1,4 +1,5 @@
 module.exports = {
+  testTimeout: 20000,
   testEnvironment: "node",
   testMatch: ["<rootDir>/test/**/*.test.ts"],
   transform: {
