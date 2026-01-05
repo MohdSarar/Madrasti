@@ -14,7 +14,8 @@ let client: ReturnType<typeof createClient> | null = null;
 export async function getRedis() {
   if (client) return client;
   client = createClient({ url: config.redisUrl });
-  client.on("error", (err) => logger.error("redis error", { err: String(err) }));
+  client.on("error", (err) => logger.error({ err: String(err) }, "redis error"));
+
   await client.connect();
   return client;
 }

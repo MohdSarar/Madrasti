@@ -2,21 +2,98 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
 
 jobs:
   auth-service:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: madrasti_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres" 
+          --health-interval=5s 
+          --health-timeout=5s 
+          --health-retries=20
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping" 
+          --health-interval=5s 
+          --health-timeout=3s 
+          --health-retries=20
+
     defaults:
       run:
         working-directory: services/auth
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/madrasti_test
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: test
+      JWT_SECRET: test_jwt_secret_32_chars_minimum____
+      JWT_REFRESH_SECRET: test_jwt_refresh_secret_32_chars____
+      TRUST_PROXY: "0"
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - run: npm install
-      - run: npm run lint
-      - run: npm test
-      - run: npm run build
+          cache: "npm"
+          cache-dependency-path: services/auth/package-lock.json
+
+      - name: Install
+        run: npm install --include=dev --omit=optional --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test (coverage)
+        run: npm run test:coverage
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-coverage
+          path: services/auth/coverage
+
+      - name: Docker build (prod)
+        run: docker build --target prod -t madrasti-auth:ci .
+
+      - name: Trivy scan (fs)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: "fs"
+          scan-ref: "services/auth"
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+      - name: Trivy scan (image)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: "image"
+          image-ref: "madrasti-auth:ci"
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"

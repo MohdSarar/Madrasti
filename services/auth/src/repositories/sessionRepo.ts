@@ -21,7 +21,7 @@ export async function createSession(params: {
   userId: string;
   token: string; // refresh token (or placeholder)
   expiresAt: Date;
-  deviceInfo: any;
+  deviceInfo: Record<string, string | null>;
 }): Promise<{ id: string }> {
   const tokenHash = sha256(params.token);
   const res = await pool.query<{ id: string }>(

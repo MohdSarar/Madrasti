@@ -16,7 +16,7 @@ export const schemaCreateSchool = Joi.object({
 });
 
 export const schemaLogin = Joi.object({
-  email: Joi.string().email().required(),
+  email: Joi.string().email({ tlds: { allow: false } }).required(),
   password: Joi.string().min(8).max(128).required(),
   totp: Joi.string().length(6).optional(),
   school_slug: Joi.string().regex(/^[a-z0-9-]{3,100}$/).optional(),
