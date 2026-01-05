@@ -1,14 +1,28 @@
-import { Router } from "express";
+import { Router, type NextFunction, type Request, type Response } from "express";
+import type Joi from "joi";
+import swaggerUi from "swagger-ui-express";
+
 import { asyncHandler } from "./utils/asyncHandler.js";
 import { authRateLimit, loginRateLimit } from "./middleware/rateLimit.js";
 import { requireAuth, requireRole } from "./middleware/auth.js";
-import { schemaCreateSchool, schemaLogin, schemaRefresh, schema2faVerify, schemaPhoneRequestOtp, schemaPhoneVerifyOtp } from "./validation/schemas.js";
+import {
+  schemaCreateSchool,
+  schemaLogin,
+  schemaRefresh,
+  schema2faVerify,
+  schemaPhoneRequestOtp,
+  schemaPhoneVerifyOtp,
+} from "./validation/schemas.js";
 import * as authController from "./controllers/authController.js";
 import * as superAdminController from "./controllers/superAdminController.js";
 import { HttpError } from "./utils/http.js";
+import { register } from "./metrics.js";
+import { pool } from "./db.js";
+import { getRedis } from "./services/otp.js";
+import { buildOpenApiSpec } from "./openapi.js";
 
-function validate(schema: any) {
-  return (req: any, _res: any, next: any) => {
+function validate<T>(schema: Joi.ObjectSchema<T>) {
+  return (req: Request, _res: Response, next: NextFunction) => {
     const { error, value } = schema.validate(req.body, { abortEarly: false, stripUnknown: true });
     if (error) return next(new HttpError(400, "VALIDATION_ERROR", "Invalid payload", { details: error.details }));
     req.body = value;
@@ -19,7 +33,59 @@ function validate(schema: any) {
 export function buildRoutes() {
   const r = Router();
 
+  /**
+   * @openapi
+   * /health:
+   *   get:
+   *     summary: Liveness probe
+   *     responses:
+   *       200:
+   *         description: OK
+   */
+  r.get("/health", asyncHandler(async (_req, res) => res.json({ ok: true })));
   r.get("/healthz", asyncHandler(async (_req, res) => res.json({ ok: true })));
+
+  /**
+   * @openapi
+   * /readyz:
+   *   get:
+   *     summary: Readiness probe (Postgres + Redis)
+   *     responses:
+   *       200:
+   *         description: OK
+   */
+  r.get(
+    "/readyz",
+    asyncHandler(async (_req, res) => {
+      await pool.query("SELECT 1 as ok");
+      const redis = await getRedis();
+      const pong = await redis.ping();
+      if (pong !== "PONG") throw new Error("Redis ping failed");
+      res.json({ ok: true });
+    })
+  );
+
+  /**
+   * @openapi
+   * /metrics:
+   *   get:
+   *     summary: Prometheus metrics
+   *     responses:
+   *       200:
+   *         description: Prometheus text format
+   */
+  r.get(
+    "/metrics",
+    asyncHandler(async (_req, res) => {
+      res.setHeader("Content-Type", register.contentType);
+      res.send(await register.metrics());
+    })
+  );
+
+  // OpenAPI + Swagger UI (nice-to-have)
+  const spec = buildOpenApiSpec();
+  r.get("/openapi.json", (_req, res) => res.json(spec));
+  r.use("/docs", swaggerUi.serve, swaggerUi.setup(spec));
 
   // Super admin
   r.post(

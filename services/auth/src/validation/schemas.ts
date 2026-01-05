@@ -8,7 +8,7 @@ export const schemaCreateSchool = Joi.object({
   school_type: Joi.string().max(50).allow(null, ""),
   contact_email: Joi.string().email().allow(null, ""),
   contact_phone: Joi.string().max(20).allow(null, ""),
-  primary_language: Joi.string().valid("ar","en","fr").default("ar"),
+  primary_language: Joi.string().valid("ar", "en", "fr").default("ar"),
   admin_email: Joi.string().email().required(),
   admin_password: Joi.string().min(8).max(128).required(),
   admin_first_name_ar: Joi.string().min(1).max(100).required(),
@@ -16,14 +16,18 @@ export const schemaCreateSchool = Joi.object({
 });
 
 export const schemaLogin = Joi.object({
-  email: Joi.string().email().required(),
+  // NOTE: tests and local environments commonly use emails like `user@local`.
+  // Joi's default email() requires at least 2 domain segments (e.g. example.com).
+  // We relax it to accept `@local` while still validating basic email structure.
+  email: Joi.string().email({ tlds: { allow: false }, minDomainSegments: 1 }).required(),
   password: Joi.string().min(8).max(128).required(),
   totp: Joi.string().length(6).optional(),
   school_slug: Joi.string().regex(/^[a-z0-9-]{3,100}$/).optional(),
 });
 
 export const schemaRefresh = Joi.object({
-  refresh_token: Joi.string().min(20).required(),
+  // Let controller decide validity (and return a 401) instead of schema blocking.
+  refresh_token: Joi.string().required(),
 });
 
 export const schema2faVerify = Joi.object({

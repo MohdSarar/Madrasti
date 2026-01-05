@@ -7,11 +7,11 @@ async function main() {
   await healthcheckDb();
   const app = buildApp();
   app.listen(config.port, () => {
-    logger.info("auth service started", { port: config.port, env: config.nodeEnv });
+    logger.info({ port: config.port, env: config.nodeEnv }, "auth service started");
   });
 }
 
 main().catch((err) => {
-  logger.error("fatal", { err: String(err?.stack ?? err) });
+  logger.error({ err: String(err?.stack ?? err) }, "fatal");
   process.exit(1);
 });

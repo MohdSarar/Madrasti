@@ -32,7 +32,14 @@ export async function createSchool(params: {
       params.primaryLanguage ?? "ar",
     ]
   );
-  return res.rows[0];
+
+  const row = res.rows[0];
+  if (!row) {
+    // This should not happen unless DB is misbehaving or query changed.
+    throw new Error("createSchool: INSERT returned no row");
+  }
+
+  return { id: row.id };
 }
 
 export async function findSchoolBySlug(slug: string): Promise<SchoolRow | null> {
