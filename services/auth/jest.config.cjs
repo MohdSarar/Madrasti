@@ -11,4 +11,8 @@ module.exports = {
   },
   setupFilesAfterEnv: ["<rootDir>/test/setup.ts"],
   collectCoverageFrom: ["src/**/*.ts"],
+
+  // new lines
+  coverageDirectory: "/tmp/coverage",
+  coverageReporters: ["text", "lcov", "html"],
 };

@@ -4,8 +4,8 @@ import { pool } from "../src/db.js";
 import { logger } from "../src/logger.js";
 
 async function run() {
-  const email = process.env.SUPER_ADMIN_EMAIL ?? "superadmin@madrasti.local";
-  const password = process.env.SUPER_ADMIN_PASSWORD ?? "SuperAdmin12345!";
+  const email = process.env["SUPER_ADMIN_EMAIL"] ?? "superadmin@madrasti.local";
+  const password = process.env["SUPER_ADMIN_PASSWORD"] ?? "SuperAdmin12345!";
 
   const passHash = await hashPassword(password);
   const user = await createUser({

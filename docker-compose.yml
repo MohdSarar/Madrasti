@@ -2,51 +2,146 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
     ports:
-      - "${POSTGRES_PORT}:5432"
+    - ${POSTGRES_PORT:-5433}:5432
     volumes:
-      - pgdata:/var/lib/postgresql/data
+    - pgdata:/var/lib/postgresql/data
+    - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    - ./services/auth/migrations:/migrations/auth:ro
+    - ./services/student/migrations:/migrations/student:ro
+    - ./services/school/migrations:/migrations/school:ro
+    - ./services/user-profile/migrations:/migrations/user-profile:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test:
+      - CMD-SHELL
+      - pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}
       interval: 5s
       timeout: 3s
       retries: 20
-
   redis:
     image: redis:7
     ports:
-      - "${REDIS_PORT}:6379"
-    command: ["redis-server", "--appendonly", "yes"]
+    - ${REDIS_PORT:-6379}:6379
+    command:
+    - redis-server
+    - --appendonly
+    - 'yes'
     volumes:
-      - redisdata:/data
+    - redisdata:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test:
+      - CMD
+      - redis-cli
+      - ping
       interval: 5s
       timeout: 3s
       retries: 20
-
   auth:
     build:
-      context: ./services/auth
-      target: dev
+      context: .
+      dockerfile: services/auth/Dockerfile
     env_file:
-      - ./.env
+    - ./.env
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     ports:
-      - "${AUTH_PORT}:8081"
+    - ${AUTH_PORT:-8081}:8081
     volumes:
-      - ./services/auth:/app
-      - auth_node_modules:/app/node_modules
-    command: ["npm", "run", "dev"]
-
+    - ./services/auth:/app
+    - auth_node_modules:/app/node_modules
+    command:
+    - npm
+    - run
+    - dev
+  student:
+    build:
+      context: .
+      dockerfile: services/student/Dockerfile
+    environment:
+      PORT: 8082
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/student_db
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth:8081
+      AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
+    depends_on:
+      auth:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+    - ${STUDENT_PORT:-8082}:8082
+    volumes:
+    - ./services/student:/app
+    - student_node_modules:/app/node_modules
+    command:
+    - npm
+    - run
+    - dev
+  school:
+    build:
+      context: .
+      dockerfile: services/school/Dockerfile
+    environment:
+      PORT: 8083
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/school_db
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth:8081
+      AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
+      EVENT_STREAM: school-events
+    depends_on:
+      auth:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+    - ${SCHOOL_PORT:-8083}:8083
+    volumes:
+    - ./services/school:/app
+    - school_node_modules:/app/node_modules
+    command:
+    - npm
+    - run
+    - dev
+  user-profile:
+    build:
+      context: .
+      dockerfile: services/user-profile/Dockerfile
+    environment:
+      PORT: 8084
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/user_db
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth:8081
+      AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
+    depends_on:
+      auth:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+    - ${USER_PROFILE_PORT:-8084}:8084
+    volumes:
+    - ./services/user-profile:/app
+    - user_profile_node_modules:/app/node_modules
+    command:
+    - npm
+    - run
+    - dev
 volumes:
-  pgdata:
-  redisdata:
-  auth_node_modules:
+  pgdata: null
+  redisdata: null
+  auth_node_modules: null
+  student_node_modules: null
+  school_node_modules: null
+  user_profile_node_modules: null

@@ -8,8 +8,12 @@
 export const USER_ROLES = {
   SUPER_ADMIN: "super_admin",
   SCHOOL_ADMIN: "school_admin",
-  STAFF: "staff",
+  TEACHER: "teacher",
+  PARENT: "parent",
   STUDENT: "student",
+  ACCOUNTANT: "accountant",
+  LIBRARIAN: "librarian",
+  STAFF: "staff",
 } as const;
 
 export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES];

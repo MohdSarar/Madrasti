@@ -46,6 +46,9 @@ export const config = {
   databaseUrl: must("DATABASE_URL"),
   redisUrl: must("REDIS_URL"),
 
+  // Step 3: internal service-to-service auth (protects /internal/* endpoints)
+  internalServiceToken: process.env["INTERNAL_SERVICE_TOKEN"] ?? "dev-internal-token",
+
   jwt: {
     accessSecret: must("JWT_ACCESS_SECRET"),
     refreshSecret: must("JWT_REFRESH_SECRET"),

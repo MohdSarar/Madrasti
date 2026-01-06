@@ -38,11 +38,11 @@ async function run() {
     lastNameAr: "أحمد",
   });
 
-  logger.info("seed done", { schoolId: school.id, adminUserId: admin.id });
+  logger.info({ schoolId: school.id, adminUserId: admin.id }, "seed done");
   await pool.end();
 }
 
 run().catch((err) => {
-  logger.error("seed failed", { err: String(err?.stack ?? err) });
+  logger.error({ err: String(err?.stack ?? err) }, "seed failed");
   process.exit(1);
 });

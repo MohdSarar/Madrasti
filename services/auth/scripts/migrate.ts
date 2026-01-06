@@ -13,7 +13,7 @@ async function run() {
 
   for (const f of files) {
     const sql = fs.readFileSync(path.join(migrationsDir, f), "utf8");
-    logger.info("running migration", { file: f });
+    logger.info({ file: f }, "running migration");
     await pool.query(sql);
   }
 
@@ -22,6 +22,6 @@ async function run() {
 }
 
 run().catch((err) => {
-  logger.error("migration failed", { err: String(err?.stack ?? err) });
+  logger.error({ err: String(err?.stack ?? err) }, "migration failed");
   process.exit(1);
 });
