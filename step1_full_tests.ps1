@@ -13,7 +13,7 @@ Write-Host "Project: $proj" -ForegroundColor Cyan
 
 function Exec($cmd) {
   Write-Host "`n> $cmd" -ForegroundColor Yellow
-  iex $cmd
+  Invoke-Expression $cmd
 }
 
 function Wait-Healthy {
@@ -44,7 +44,7 @@ function CurlJson {
   $h = @{}
   foreach ($k in $Headers.Keys) { $h[$k] = $Headers[$k] }
 
-  if ($Body -ne $null) {
+  if ($null -ne $Body) {
     return Invoke-RestMethod -Method $Method -Uri $Url -Headers $h -Body ($Body | ConvertTo-Json -Depth 10) -ContentType "application/json"
   }
   return Invoke-RestMethod -Method $Method -Uri $Url -Headers $h
@@ -86,10 +86,10 @@ try {
   $base = "http://localhost:8081"
   Write-Host "`n== HTTP Smoke Checks ==" -ForegroundColor Cyan
 
-  $health = CurlJson "$base/health" "GET"
+  CurlJson "$base/health" "GET" | Out-Null
   Write-Host "/health OK" -ForegroundColor Green
 
-  $ready = CurlJson "$base/healthz" "GET"
+  CurlJson "$base/healthz" "GET" | Out-Null
   Write-Host "/healthz OK" -ForegroundColor Green
 
   # Optional: metrics & openapi (ignore if endpoints differ)
