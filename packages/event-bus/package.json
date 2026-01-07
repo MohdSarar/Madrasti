@@ -5,11 +5,13 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "node --test"
+    "test": "npm run build --silent && node --test test"
   },
   "dependencies": {
     "redis": "^4.7.0"

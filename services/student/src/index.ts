@@ -9,8 +9,11 @@ async function main() {
 
   const app = buildApp();
 
-  const server = app.listen(config.port, () => {
-    logger.info({ port: config.port }, "student-service listening");
+  const server = app.listen(config.port, config.host, () => {
+    logger.info(
+      { host: config.host, port: config.port },
+      "student-service listening"
+    );
   });
 
   const shutdown = async () => {

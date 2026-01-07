@@ -6,8 +6,15 @@ import { buildApp } from "./app.js";
 
 async function main() {
   await redis.connect();
+
   const app = buildApp();
-  const server = app.listen(config.port, () => logger.info({ port: config.port }, "user-profile-service listening"));
+
+  const server = app.listen(config.port, config.host, () => {
+    logger.info(
+      { host: config.host, port: config.port },
+      "user-profile-service listening"
+    );
+  });
 
   const shutdown = async () => {
     logger.info("shutting down");

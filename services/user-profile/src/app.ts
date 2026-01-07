@@ -3,6 +3,7 @@ import helmet from "helmet";
 import cors from "cors";
 import client from "prom-client";
 import { authenticate, type AuthRequest } from "@madrasti/auth-sdk";
+import { bypassAuth } from "./middleware/bypassAuth.js";
 import { config } from "./config.js";
 import { redis } from "./redis.js";
 import { pool } from "./db.js";
@@ -20,7 +21,7 @@ export function buildApp() {
 
   app.use((req, res, next) => {
     const end = httpRequestDuration.startTimer({ method: req.method, route: req.path });
-    res.on("finish", () => end({ status: String(res.statusCode) } as any));
+    res.on("finish", () => end({ status_code: String(res.statusCode) } as any));
     next();
   });
 
@@ -41,12 +42,15 @@ export function buildApp() {
     res.end(await client.register.metrics());
   });
 
-  const auth = authenticate({
-    authServiceUrl: config.authServiceUrl,
-    serviceToken: config.authServiceToken,
-    redis,
-    cacheTTLSeconds: 60,
-  });
+  const auth = config.testBypassAuth
+    ? bypassAuth()
+    : authenticate({
+      authServiceUrl: config.authServiceUrl,
+      serviceToken: config.authServiceToken,
+      redis,
+      cacheTTLSeconds: 60,
+    });
+
 
   app.get("/api/v1/profile/me", auth, async (req: AuthRequest, res) => {
     const profile = await profileRepo.getProfile(req.auth!.sub);

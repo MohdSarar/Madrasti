@@ -17,7 +17,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "eslint \"src/**/*.ts\"",
-    "test": "node --test"
+    "test": "npm run build --silent && node --test test"
   },
   "dependencies": {
     "axios": "^1.7.7"

@@ -7,78 +7,94 @@ export type DomainEvent<TPayload = unknown> = {
   correlation_id?: string;
 };
 
+export type EventBusDeps = {
+  pub: RedisClientType;
+  sub: RedisClientType;
+};
+
 export class EventBus {
   private pub: RedisClientType;
   private sub: RedisClientType;
 
-  constructor(redisUrl: string) {
-    this.pub = createClient({ url: redisUrl });
-    this.sub = createClient({ url: redisUrl });
+  /**
+   * Create an EventBus connected to Redis Streams.
+   * In production you should pass a redisUrl.
+   * In tests you can inject pre-created clients using { pub, sub }.
+   */
+  constructor(arg: string | EventBusDeps) {
+    if (typeof arg === "string") {
+      this.pub = createClient({ url: arg });
+      this.sub = createClient({ url: arg });
+    } else {
+      this.pub = arg.pub;
+      this.sub = arg.sub;
+    }
   }
 
-  async connect(): Promise<void> {
-    await this.pub.connect();
-    await this.sub.connect();
+  async connect() {
+    if (!this.pub.isOpen) await this.pub.connect();
+    if (!this.sub.isOpen) await this.sub.connect();
   }
 
-  async publish(stream: string, event: DomainEvent): Promise<void> {
-    // Redis Streams fields must be strings, so we store "" when missing.
+  async disconnect() {
+    if (this.pub.isOpen) await this.pub.quit();
+    if (this.sub.isOpen) await this.sub.quit();
+  }
+
+  async publish<T>(stream: string, event: DomainEvent<T>) {
     await this.pub.xAdd(stream, "*", {
       type: event.type,
-      payload: JSON.stringify(event.payload),
+      payload: JSON.stringify(event.payload ?? null),
       timestamp: String(event.timestamp),
       correlation_id: event.correlation_id ?? "",
     });
   }
 
-  async subscribe(opts: {
+  async createConsumerGroup(stream: string, group: string) {
+    try {
+      await this.sub.xGroupCreate(stream, group, "0", { MKSTREAM: true });
+    } catch (err: any) {
+      // BUSYGROUP = group exists, safe to ignore
+      if (!String(err?.message ?? "").includes("BUSYGROUP")) throw err;
+    }
+  }
+
+  async consume<T>(params: {
     stream: string;
     group: string;
     consumer: string;
-    handler: (event: DomainEvent) => Promise<void>;
+    count?: number;
     blockMs?: number;
-  }): Promise<void> {
-    const { stream, group, consumer, handler } = opts;
+    handler: (event: DomainEvent<T>, ack: () => Promise<void>) => Promise<void>;
+  }) {
+    const count = params.count ?? 10;
+    const blockMs = params.blockMs ?? 5000;
 
-    try {
-      await this.sub.xGroupCreate(stream, group, "0", { MKSTREAM: true });
-    } catch {
-      // group already exists
-    }
+    const res = await this.sub.xReadGroup(
+      params.group,
+      params.consumer,
+      { key: params.stream, id: ">" },
+      { COUNT: count, BLOCK: blockMs }
+    );
 
-    const blockMs = opts.blockMs ?? 5000;
+    if (!res) return;
 
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const resp = await this.sub.xReadGroup(
-        group,
-        consumer,
-        [{ key: stream, id: ">" }],
-        { COUNT: 10, BLOCK: blockMs }
-      );
+    for (const streamResp of res) {
+      for (const msg of streamResp.messages) {
+        const fields = msg.message as any;
 
-      if (!resp || resp.length === 0) continue;
+        const event: DomainEvent<T> = {
+          type: fields.type,
+          payload: fields.payload ? JSON.parse(fields.payload) : (null as any),
+          timestamp: Number(fields.timestamp),
+          correlation_id: fields.correlation_id || undefined,
+        };
 
-      for (const streamResp of resp) {
-        for (const message of streamResp.messages) {
-          const rawCorrelation = String(message.message.correlation_id ?? "").trim();
-          const correlation_id = rawCorrelation.length > 0 ? rawCorrelation : undefined;
+        const ack = async () => {
+          await this.sub.xAck(params.stream, params.group, msg.id);
+        };
 
-          const base: Omit<DomainEvent, "correlation_id"> = {
-            type: String(message.message.type),
-            payload: JSON.parse(String(message.message.payload)),
-            timestamp: parseInt(String(message.message.timestamp), 10),
-          };
-
-          // IMPORTANT for exactOptionalPropertyTypes:
-          // don't set correlation_id at all when undefined
-          const evt: DomainEvent = correlation_id
-            ? { ...base, correlation_id }
-            : base;
-
-          await handler(evt);
-          await this.sub.xAck(stream, group, message.id);
-        }
+        await params.handler(event, ack);
       }
     }
   }

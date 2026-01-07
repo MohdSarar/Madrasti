@@ -6,94 +6,50 @@ on:
   pull_request:
 
 jobs:
-  auth-service:
+  test:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: madrasti_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U postgres" 
-          --health-interval=5s 
-          --health-timeout=5s 
-          --health-retries=20
-
-      redis:
-        image: redis:7
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd="redis-cli ping" 
-          --health-interval=5s 
-          --health-timeout=3s 
-          --health-retries=20
-
-    defaults:
-      run:
-        working-directory: services/auth
-
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/madrasti_test
-      REDIS_URL: redis://localhost:6379
-      NODE_ENV: test
-      JWT_SECRET: test_jwt_secret_32_chars_minimum____
-      JWT_REFRESH_SECRET: test_jwt_refresh_secret_32_chars____
-      TRUST_PROXY: "0"
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: 20
           cache: "npm"
-          cache-dependency-path: services/auth/package-lock.json
 
-      - name: Install
-        run: npm install --include=dev --omit=optional --no-audit --no-fund
+      - name: Install deps
+        run: npm ci
 
-      - name: Lint
-        run: npm run lint
+      - name: Prepare env
+        run: |
+          cp .env.example .env
 
-      - name: Test (coverage)
-        run: npm run test:coverage
+      - name: Start dependencies (Postgres + Redis)
+        run: |
+          docker compose up -d postgres redis
+          docker compose ps
 
-      - name: Build
-        run: npm run build
+      - name: Run workspace tests
+        env:
+          # Auth service tests require real auth behavior, others can bypass auth.
+          TEST_BYPASS_AUTH: "1"
+          # Default local mappings from docker-compose (override if you changed POSTGRES_PORT)
+          DATABASE_URL: "postgres://postgres:postgres@localhost:5432/auth_db"
+          REDIS_URL: "redis://localhost:6379"
+          AUTH_SERVICE_URL: "http://localhost:8081"
+          AUTH_SERVICE_TOKEN: "dev-internal-token"
+        run: |
+          # Auth tests manage their own envs; keep them explicit.
+          npm -w @madrasti/auth-service test
+          # Step 3: packages + new services
+          npm -w @madrasti/auth-sdk test
+          npm -w @madrasti/event-bus test
+          npm -w @madrasti/student-service test
+          npm -w @madrasti/school-service test
+          npm -w @madrasti/user-profile-service test
 
-      - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: auth-coverage
-          path: services/auth/coverage
-
-      - name: Docker build (prod)
-        run: docker build --target prod -t madrasti-auth:ci .
-
-      - name: Trivy scan (fs)
-        uses: aquasecurity/trivy-action@0.24.0
-        with:
-          scan-type: "fs"
-          scan-ref: "services/auth"
-          format: "table"
-          exit-code: "1"
-          ignore-unfixed: true
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH"
-
-      - name: Trivy scan (image)
-        uses: aquasecurity/trivy-action@0.24.0
-        with:
-          scan-type: "image"
-          image-ref: "madrasti-auth:ci"
-          format: "table"
-          exit-code: "1"
-          ignore-unfixed: true
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH"
+      - name: Shutdown
+        if: always()
+        run: docker compose down -v

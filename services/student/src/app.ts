@@ -8,21 +8,25 @@ import {
   requireTenant,
   type AuthRequest,
 } from "@madrasti/auth-sdk";
+import { bypassAuth } from "./middleware/bypassAuth.js";
 import { config } from "./config.js";
 import { redis } from "./redis.js";
 import { pool } from "./db.js";
 import { logger } from "./logger.js";
 import { httpRequestDuration, studentsCreated } from "./metrics.js";
+import { createStudentSchema, listStudentsSchema } from "./validation/students.js";
 import {
-  createStudentSchema,
-  listStudentsSchema,
-} from "./validation/students.js";
+  createParentSchema,
+  listParentsSchema,
+  linkParentSchema,
+} from "./validation/parents.js";
 import * as studentRepo from "./repositories/studentRepo.js";
+import * as parentRepo from "./repositories/parentRepo.js";
 
-function requireAuthContext(req: AuthRequest, res: express.Response): {
-  schoolId: string;
-  userId: string;
-} | null {
+function requireAuthContext(
+  req: AuthRequest,
+  res: express.Response
+): { schoolId: string; userId: string } | null {
   if (!req.auth) {
     res
       .status(401)
@@ -66,7 +70,7 @@ export function buildApp() {
     });
 
     res.on("finish", () => {
-      end({ status: String(res.statusCode) } as never);
+      end({ status_code: String(res.statusCode) } as never);
     });
 
     next();
@@ -85,20 +89,26 @@ export function buildApp() {
     }
   });
 
+  // Prometheus
   app.get("/metrics", async (_req, res) => {
     res.setHeader("Content-Type", client.register.contentType);
     res.end(await client.register.metrics());
   });
 
   // Auth middleware (service-to-service validate)
-  const auth = authenticate({
-    authServiceUrl: config.authServiceUrl,
-    serviceToken: config.authServiceToken,
-    redis,
-    cacheTTLSeconds: 60,
-  });
+  const auth = config.testBypassAuth
+    ? bypassAuth()
+    : authenticate({
+        authServiceUrl: config.authServiceUrl,
+        serviceToken: config.authServiceToken,
+        redis,
+        cacheTTLSeconds: 60,
+      });
 
-  // API
+  // =========================
+  // Students
+  // =========================
+
   app.get(
     "/api/v1/students",
     auth,
@@ -153,8 +163,7 @@ export function buildApp() {
         createdBy: ctx.userId,
       });
 
-      // Avoid "string | undefined" by using ctx.schoolId (string guaranteed)
-      studentsCreated.inc({ school_id: ctx.schoolId });
+      studentsCreated.inc();
 
       return res.status(201).json(student);
     }
@@ -169,7 +178,7 @@ export function buildApp() {
       const ctx = requireAuthContext(req, res);
       if (!ctx) return;
 
-      const studentId = req.params["id"]; // string | undefined
+      const studentId = req.params["id"];
       if (!studentId) {
         return res.status(400).json({
           code: "VALIDATION_ERROR",
@@ -178,7 +187,6 @@ export function buildApp() {
       }
 
       const student = await studentRepo.findStudentById(studentId, ctx.schoolId);
-
       if (!student) {
         return res
           .status(404)
@@ -189,7 +197,144 @@ export function buildApp() {
     }
   );
 
+  // =========================
+  // Parents management (Step 3 - minimal completeness)
+  // =========================
+
+  app.get(
+    "/api/v1/parents",
+    auth,
+    requireRole({ roles: ["school_admin"] }),
+    requireTenant(),
+    async (req: AuthRequest, res) => {
+      const parsed = listParentsSchema.validate(req.query);
+      if (parsed.error) {
+        return res.status(400).json({
+          code: "VALIDATION_ERROR",
+          message: "Invalid query",
+          details: parsed.error.details,
+        });
+      }
+
+      const ctx = requireAuthContext(req, res);
+      if (!ctx) return;
+
+      const rows = await parentRepo.listParents({
+        schoolId: ctx.schoolId,
+        limit: parsed.value.limit,
+        offset: parsed.value.offset,
+      });
+
+      return res.json({ items: rows });
+    }
+  );
+
+  app.post(
+    "/api/v1/parents",
+    auth,
+    requireRole({ roles: ["school_admin"] }),
+    requireTenant(),
+    async (req: AuthRequest, res) => {
+      const parsed = createParentSchema.validate(req.body, { abortEarly: false });
+      if (parsed.error) {
+        return res.status(400).json({
+          code: "VALIDATION_ERROR",
+          message: "Invalid payload",
+          details: parsed.error.details,
+        });
+      }
+
+      const ctx = requireAuthContext(req, res);
+      if (!ctx) return;
+
+      const row = await parentRepo.createParent({
+        schoolId: ctx.schoolId,
+        firstNameAr: parsed.value.first_name_ar,
+        lastNameAr: parsed.value.last_name_ar,
+        firstNameEn: parsed.value.first_name_en || null,
+        lastNameEn: parsed.value.last_name_en || null,
+        email: parsed.value.email || null,
+        phone: parsed.value.phone || null,
+        relationshipType: parsed.value.relationship_type || null,
+        occupation: parsed.value.occupation || null,
+        employer: parsed.value.employer || null,
+        workPhone: parsed.value.work_phone || null,
+        isPrimaryContact: parsed.value.is_primary_contact,
+        canPickupStudent: parsed.value.can_pickup_student,
+        receivesNotifications: parsed.value.receives_notifications,
+      });
+
+      return res.status(201).json(row);
+    }
+  );
+
+  app.post(
+    "/api/v1/students/:id/parents",
+    auth,
+    requireRole({ roles: ["school_admin"] }),
+    requireTenant(),
+    async (req: AuthRequest, res) => {
+      const parsed = linkParentSchema.validate(req.body, { abortEarly: false });
+      if (parsed.error) {
+        return res.status(400).json({
+          code: "VALIDATION_ERROR",
+          message: "Invalid payload",
+          details: parsed.error.details,
+        });
+      }
+
+      const ctx = requireAuthContext(req, res);
+      if (!ctx) return;
+
+      const studentId = req.params["id"];
+      if (!studentId) {
+        return res.status(400).json({
+          code: "VALIDATION_ERROR",
+          message: "Student id is required",
+        });
+      }
+
+      await parentRepo.linkParentToStudent({
+        schoolId: ctx.schoolId,
+        studentId,
+        parentId: parsed.value.parent_id,
+        relationshipType: parsed.value.relationship_type || null,
+        isPrimary: parsed.value.is_primary,
+      });
+
+      return res.status(204).send();
+    }
+  );
+
+  app.get(
+    "/api/v1/students/:id/parents",
+    auth,
+    requireRole({ roles: ["school_admin", "teacher"] }),
+    requireTenant(),
+    async (req: AuthRequest, res) => {
+      const ctx = requireAuthContext(req, res);
+      if (!ctx) return;
+
+      const studentId = req.params["id"];
+      if (!studentId) {
+        return res.status(400).json({
+          code: "VALIDATION_ERROR",
+          message: "Student id is required",
+        });
+      }
+
+      const rows = await parentRepo.getStudentParents({
+        schoolId: ctx.schoolId,
+        studentId,
+      });
+
+      return res.json({ items: rows });
+    }
+  );
+
+  // =========================
   // Error handler
+  // =========================
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   app.use(
     (
