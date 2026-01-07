@@ -116,112 +116,51 @@ export function buildRoutes() {
   r.post("/v1/auth/phone/request-otp", authRateLimit as any, validate(schemaPhoneRequestOtp), authController.requestPhoneOtp);
   r.post("/v1/auth/phone/verify-otp", authRateLimit as any, validate(schemaPhoneVerifyOtp), authController.verifyPhoneOtp);
 
-  // Step 4: Security & Compliance
-  /**
-   * @openapi
-   * /api/v1/auth/password/change:
-   *   post:
-   *     summary: Change password
-   *     security:
-   *       - bearerAuth: []
-   *     responses:
-   *       200:
-   *         description: Password changed successfully
-   */
-  r.post(
-    "/api/v1/auth/password/change",
-    authRateLimit as any,
-    requireAuth,
-    validate(changePasswordSchema),
-    authController.changePassword
-  );
-
-  /**
-   * @openapi
-   * /api/v1/auth/password/reset/request:
-   *   post:
-   *     summary: Request password reset
-   *     responses:
-   *       200:
-   *         description: Reset email sent
-   */
-  r.post(
-    "/api/v1/auth/password/reset/request",
-    loginRateLimit as any,
-    validate(resetPasswordRequestSchema),
-    authController.requestPasswordReset
-  );
-
-  /**
-   * @openapi
-   * /api/v1/auth/password/reset/confirm:
-   *   post:
-   *     summary: Confirm password reset
-   *     responses:
-   *       200:
-   *         description: Password reset successfully
-   */
-  r.post(
-    "/api/v1/auth/password/reset/confirm",
-    loginRateLimit as any,
-    validate(resetPasswordConfirmSchema),
-    authController.confirmPasswordReset
-  );
-
-  /**
-   * @openapi
-   * /api/v1/auth/sessions/revoke-all:
-   *   post:
-   *     summary: Revoke all sessions
-   *     security:
-   *       - bearerAuth: []
-   *     responses:
-   *       200:
-   *         description: All sessions revoked
-   */
-  r.post(
-    "/api/v1/auth/sessions/revoke-all",
-    authRateLimit as any,
-    requireAuth,
-    authController.revokeAllSessions
-  );
-
-  /**
-   * @openapi
-   * /api/v1/auth/security/settings:
-   *   get:
-   *     summary: Get security settings
-   *     security:
-   *       - bearerAuth: []
-   *     responses:
-   *       200:
-   *         description: Security settings retrieved
-   */
-  r.get(
-    "/api/v1/auth/security/settings",
-    authRateLimit as any,
-    requireAuth,
-    authController.getSecuritySettings
-  );
-
-  /**
-   * @openapi
-   * /api/v1/auth/security/settings:
-   *     put:
-   *       summary: Update security settings
-   *       security:
-   *         - bearerAuth: []
-   *       responses:
-   *         200:
-   *           description: Security settings updated
-   */
-  r.put(
-    "/api/v1/auth/security/settings",
-    authRateLimit as any,
-    requireAuth,
-    validate(securitySettingsSchema),
-    authController.updateSecuritySettings
-  );
-
   return r;
 }
+// Step 4: Security & Compliance
+router.post(
+  "/v1/auth/password/change",
+  authRateLimit,
+  requireAuth,
+  validate(changePasswordSchema),
+  authController.changePassword
+);
+
+router.post(
+  "/v1/auth/password/reset/request",
+  loginRateLimit,
+  validate(resetPasswordRequestSchema),
+  authController.requestPasswordReset
+);
+
+router.post(
+  "/v1/auth/password/reset/confirm",
+  loginRateLimit,
+  validate(resetPasswordConfirmSchema),
+  authController.confirmPasswordReset
+);
+
+router.post(
+  "/v1/auth/sessions/revoke-all",
+  authRateLimit,
+  requireAuth,
+  authController.revokeAllSessions
+);
+
+router.get(
+  "/v1/auth/security/settings",
+  authRateLimit,
+  requireAuth,
+  authController.getSecuritySettings
+);
+
+router.put(
+  "/v1/auth/security/settings",
+  authRateLimit,
+  requireAuth,
+  validate(securitySettingsSchema),
+  authController.updateSecuritySettings
+);
+
+

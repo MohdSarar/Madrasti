@@ -2,6 +2,10 @@
   "name": "madrasti",
   "private": true,
   "type": "module",
+
+  "packageManager": "npm@10.8.2",
+  "engines": { "node": ">=20 <21", "npm": ">=10 <11" },
+
   "workspaces": [
     "services/*",
     "packages/*"

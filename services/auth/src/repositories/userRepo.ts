@@ -79,3 +79,11 @@ export async function enableUser2fa(userId: string): Promise<void> {
 export async function markUserLastLogin(userId: string): Promise<void> {
   await pool.query(`UPDATE users SET last_login_at=NOW() WHERE id=$1`, [userId]);
 }
+
+
+export async function updatePasswordHash(userId: string, password_hash: string): Promise<void> {
+  await pool.query(
+    "UPDATE users SET password_hash=$2, updated_at=NOW() WHERE id=$1",
+    [userId, password_hash]
+  );
+}

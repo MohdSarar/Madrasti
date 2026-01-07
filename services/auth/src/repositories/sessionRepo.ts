@@ -60,3 +60,8 @@ export async function getSessionByToken(refreshToken: string): Promise<SessionRo
   );
   return res.rows[0] ?? null;
 }
+
+
+export async function deleteAllForUser(userId: string): Promise<void> {
+  await pool.query("DELETE FROM user_sessions WHERE user_id=$1", [userId]);
+}

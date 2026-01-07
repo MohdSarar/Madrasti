@@ -2,7 +2,10 @@ import type { Request, Response } from "express";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { HttpError } from "../utils/http.js";
 import { findUserByEmail, markUserLastLogin, setUser2faSecret, enableUser2fa, findUserById } from "../repositories/userRepo.js";
-import { verifyPassword } from "../services/password.js";
+import * as userRepo from "../repositories/userRepo.js";
+import * as passwordResetRepo from "../repositories/passwordResetRepo.js";
+import * as sessionRepo from "../repositories/sessionRepo.js";
+import { verifyPassword, hashPassword } from "../services/password.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../services/jwt.js";
 import { createSession, updateSessionToken, deleteSessionByToken, getSessionByToken, countActiveSessions } from "../repositories/sessionRepo.js";
 import { config } from "../config.js";
@@ -10,6 +13,8 @@ import { isStaffRole } from "../domain/roles.js";
 import { generateTotpSecret, otpauthToQrDataUrl, verifyTotp } from "../services/totp.js";
 import { generateOtpCode, storeOtp, verifyOtp } from "../services/otp.js";
 import { getSmsProvider } from "../services/smsProvider.js";
+import crypto from "crypto";
+import { getSecurityClient, getSecurityEmitter } from "../services/securitySdk.js";
 
 function deviceInfoFromReq(req: Request) {
   return {
@@ -39,13 +44,54 @@ type Verify2faBody = { token: string };
 export const login = asyncHandler(async (req: Request, res: Response) => {
   const { email, password, totp } = req.body as LoginBody;
 
-  const user = await findUserByEmail(email);
+  const securityClient = getSecurityClient();
+  const securityEmitter = getSecurityEmitter();
+
+const user = await findUserByEmail(email);
   if (!user || !user.is_active || !user.password_hash) {
     throw new HttpError(401, "INVALID_CREDENTIALS", "Invalid credentials");
   }
 
-  const ok = await verifyPassword(user.password_hash, password);
-  if (!ok) throw new HttpError(401, "INVALID_CREDENTIALS", "Invalid credentials");
+  
+  // Step 4: account lockout (best-effort)
+  if (securityClient && user.school_id) {
+    const st: any = await securityClient.getLockoutStatus({ userId: user.id, schoolId: user.school_id }).catch(() => null);
+    const payload = (st as any)?.data ?? (st as any);
+    const data = (payload as any)?.data ?? payload;
+    if (data?.isLocked) {
+      throw new HttpError(423, "ACCOUNT_LOCKED", `Account locked until ${data.lockedUntil ?? "unknown"}`);
+    }
+  }
+
+const ok = await verifyPassword(user.password_hash, password);
+  if (!ok) {
+    if (securityClient && user.school_id) {
+      const r: any = await securityClient.recordFailedAttempt({ userId: user.id, schoolId: user.school_id, reason: "bad_password" }).catch(() => null);
+      const payload = (r as any)?.data ?? (r as any);
+      const data = (payload as any)?.data ?? payload;
+      if (data?.locked) {
+        throw new HttpError(423, "ACCOUNT_LOCKED", `Account locked until ${data.lockedUntil ?? "unknown"}`);
+      }
+    }
+    throw new HttpError(401, "INVALID_CREDENTIALS", "Invalid credentials");
+  }
+
+  // successful login -> reset lockout counter (best-effort) + audit
+  if (securityClient) {
+    await securityClient.unlockAccount({ userId: user.id }).catch(() => undefined);
+  }
+  if (securityEmitter) {
+    await securityEmitter.emit({
+      event_type: "LOGIN_SUCCESS",
+      event_source: "auth",
+      user_id: user.id,
+      
+      action: "LOGIN",
+      status: "SUCCESS",
+      details: { method: "password" },
+      severity: "LOW"
+    });
+  }
 
   // Tenant handling: for non-super roles, user must belong to a school
   if (user.role !== "super_admin" && !user.school_id) {
@@ -205,4 +251,142 @@ export const verifyPhoneOtp = asyncHandler(async (req: Request, res: Response) =
   const ok = await verifyOtp(request_id, phone, code);
   if (!ok) throw new HttpError(401, "OTP_INVALID", "Invalid OTP");
   res.json({ ok: true });
+});
+
+type ChangePasswordBody = { oldPassword: string; newPassword: string };
+export const changePassword = asyncHandler(async (req: Request, res: Response) => {
+  const { oldPassword, newPassword } = req.body as ChangePasswordBody;
+  const auth = (req as any).auth as { userId: string; schoolId?: string };
+  const user = await findUserById(auth.userId);
+  if (!user || !user.password_hash) throw new HttpError(404, "USER_NOT_FOUND", "User not found");
+
+  const ok = await verifyPassword(user.password_hash, oldPassword);
+  if (!ok) throw new HttpError(401, "INVALID_CREDENTIALS", "Invalid credentials");
+
+  const securityClient = getSecurityClient();
+  const securityEmitter = getSecurityEmitter();
+
+  if (securityClient && user.school_id) {
+    await securityClient.validatePassword({ password: newPassword, schoolId: user.school_id, userId: user.id }).catch(() => undefined);
+  }
+
+  const newHash = await hashPassword(newPassword);
+  await userRepo.updatePasswordHash(user.id, newHash);
+
+  if (securityEmitter) {
+    await securityEmitter.emit({
+      event_type: "PASSWORD_CHANGED",
+      event_source: "auth",
+      user_id: user.id,
+      
+      action: "PASSWORD_CHANGE",
+      status: "SUCCESS",
+      details: { method: "user_initiated" },
+      severity: "MEDIUM",
+    });
+  }
+
+  return res.json({ success: true });
+});
+
+type ResetRequestBody = { email: string };
+export const requestPasswordReset = asyncHandler(async (req: Request, res: Response) => {
+  const { email } = req.body as ResetRequestBody;
+  const user = await findUserByEmail(email);
+
+  // Always return OK (no account enumeration)
+  if (!user || !user.is_active) return res.json({ success: true });
+
+  const tokenRaw = crypto.randomBytes(32).toString("hex");
+  const tokenHash = crypto.createHash("sha256").update(tokenRaw).digest("hex");
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+  await passwordResetRepo.createResetToken({ userId: user.id, tokenHash, expiresAt });
+
+  const securityEmitter = getSecurityEmitter();
+  if (securityEmitter) {
+    await securityEmitter.emit({
+      event_type: "PASSWORD_RESET_REQUESTED",
+      event_source: "auth",
+      user_id: user.id,
+      
+      action: "PASSWORD_RESET_REQUEST",
+      status: "INFO",
+      details: { channel: "email" },
+      severity: "MEDIUM",
+    });
+  }
+
+  if (process.env['NODE_ENV'] !== "production") {
+    return res.json({ success: true, devToken: tokenRaw });
+  }
+  return res.json({ success: true });
+});
+
+type ResetConfirmBody = { token: string; newPassword: string };
+export const confirmPasswordReset = asyncHandler(async (req: Request, res: Response) => {
+  const { token, newPassword } = req.body as ResetConfirmBody;
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+  const row = await passwordResetRepo.consumeResetToken({ tokenHash });
+  if (!row) throw new HttpError(400, "RESET_TOKEN_INVALID", "Invalid or expired token");
+
+  const user = await findUserById(row.user_id);
+  if (!user) throw new HttpError(404, "USER_NOT_FOUND", "User not found");
+
+  const securityClient = getSecurityClient();
+  const securityEmitter = getSecurityEmitter();
+
+  if (securityClient && user.school_id) {
+    await securityClient.validatePassword({ password: newPassword, schoolId: user.school_id, userId: user.id }).catch(() => undefined);
+  }
+
+  const newHash = await hashPassword(newPassword);
+  await userRepo.updatePasswordHash(user.id, newHash);
+
+  // Global revoke: delete all sessions after reset
+  await sessionRepo.deleteAllForUser(user.id);
+
+  if (securityEmitter) {
+    await securityEmitter.emit({
+      event_type: "PASSWORD_RESET_CONFIRMED",
+      event_source: "auth",
+      user_id: user.id,
+      
+      action: "PASSWORD_RESET_CONFIRM",
+      status: "SUCCESS",
+      details: {},
+      severity: "HIGH",
+    });
+  }
+
+  return res.json({ success: true });
+});
+
+export const revokeAllSessions = asyncHandler(async (req: Request, res: Response) => {
+  const auth = (req as any).auth as { userId: string };
+  await sessionRepo.deleteAllForUser(auth.userId);
+
+  const securityEmitter = getSecurityEmitter();
+  if (securityEmitter) {
+    await securityEmitter.emit({
+      event_type: "SESSIONS_REVOKED",
+      event_source: "auth",
+      user_id: auth.userId,
+      action: "REVOKE_ALL_SESSIONS",
+      status: "SUCCESS",
+      details: {},
+      severity: "MEDIUM",
+    });
+  }
+
+  return res.json({ success: true });
+});
+
+export const getSecuritySettings = asyncHandler(async (_req: Request, res: Response) => {
+  return res.json({ success: true, data: { lockoutEnabled: true, passwordRotationDays: 90 } });
+});
+
+export const updateSecuritySettings = asyncHandler(async (_req: Request, res: Response) => {
+  return res.json({ success: true });
 });

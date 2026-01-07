@@ -43,3 +43,22 @@ export const schemaPhoneVerifyOtp = Joi.object({
   phone: Joi.string().min(6).max(20).required(),
   code: Joi.string().length(6).required(),
 });
+
+
+export const changePasswordSchema = Joi.object({
+  oldPassword: Joi.string().min(8).required(),
+  newPassword: Joi.string().min(10).required(),
+});
+
+export const resetPasswordRequestSchema = Joi.object({
+  email: Joi.string().email().required(),
+});
+
+export const resetPasswordConfirmSchema = Joi.object({
+  token: Joi.string().min(32).required(),
+  newPassword: Joi.string().min(10).required(),
+});
+
+export const securitySettingsSchema = Joi.object({
+  // extension point
+}).unknown(true);

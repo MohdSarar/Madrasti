@@ -14,6 +14,7 @@ services:
       - ./services/student/migrations:/migrations/student:ro
       - ./services/school/migrations:/migrations/school:ro
       - ./services/user-profile/migrations:/migrations/user-profile:ro
+      - ./services/security/migrations:/migrations/security:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
       interval: 5s
@@ -41,6 +42,8 @@ services:
       - ./.env
     environment:
       HOST: 0.0.0.0
+      SECURITY_SERVICE_URL: ${SECURITY_SERVICE_URL:-http://security:8085}
+      SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,9 +71,11 @@ services:
       dockerfile: services/student/Dockerfile
     environment:
       HOST: 0.0.0.0
+      SECURITY_SERVICE_URL: ${SECURITY_SERVICE_URL:-http://security:8085}
+      SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
       TEST_BYPASS_AUTH: "0"
       PORT: 8082
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/student_db
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres
       REDIS_URL: redis://redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
@@ -103,9 +108,11 @@ services:
       dockerfile: services/school/Dockerfile
     environment:
       HOST: 0.0.0.0
+      SECURITY_SERVICE_URL: ${SECURITY_SERVICE_URL:-http://security:8085}
+      SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
       TEST_BYPASS_AUTH: "0"
       PORT: 8083
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/school_db
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres
       REDIS_URL: redis://redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
@@ -139,9 +146,11 @@ services:
       dockerfile: services/user-profile/Dockerfile
     environment:
       HOST: 0.0.0.0
+      SECURITY_SERVICE_URL: ${SECURITY_SERVICE_URL:-http://security:8085}
+      SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
       TEST_BYPASS_AUTH: "0"
       PORT: 8084
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/user_db
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres
       REDIS_URL: redis://redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
@@ -185,6 +194,33 @@ services:
       psql -h postgres -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE user_db;" || true;
     restart: "no"
 
+
+
+  security:
+    build:
+      context: .
+      dockerfile: services/security/Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8085
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
+      SERVICE_NAME: security
+      APP_VERSION: dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - 8085:8085
+    command: ["npm", "run", "dev"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8085/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
 
   kong:
