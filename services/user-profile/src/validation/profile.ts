@@ -1,0 +1,11 @@
+import Joi from "joi";
+
+export const upsertProfileSchema = Joi.object({
+  first_name_ar: Joi.string().max(100).allow(null, ""),
+  last_name_ar: Joi.string().max(100).allow(null, ""),
+  date_of_birth: Joi.date().iso().allow(null, ""),
+  gender: Joi.string().max(20).allow(null, ""),
+  photo_url: Joi.string().uri().allow(null, ""),
+  address: Joi.object().unknown(true).allow(null),
+  bio: Joi.string().max(2000).allow(null, ""),
+});

@@ -1,12 +1,20 @@
-FROM node:20-slim
+# syntax=docker/dockerfile:1
+FROM node:20-slim AS base
+WORKDIR /repo
 
-WORKDIR /app
+# Install deps (monorepo)
+COPY package.json package-lock.json ./
+COPY packages/auth-sdk/package.json packages/auth-sdk/package.json
+COPY packages/event-bus/package.json packages/event-bus/package.json
+COPY services/auth/package.json services/auth/package.json
+RUN npm ci --include=dev --omit=optional --no-audit --no-fund
 
-COPY package.json ./
-RUN npm install
+# Copy source
+COPY packages ./packages
+COPY services/auth ./services/auth
 
-COPY . .
+WORKDIR /repo/services/auth
+RUN npm run build
 
 EXPOSE 8081
-
-CMD ["npm","run","dev"]
+CMD ["npm","run","start"]

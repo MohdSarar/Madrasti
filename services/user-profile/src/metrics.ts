@@ -1,0 +1,15 @@
+import client from "prom-client";
+
+client.collectDefaultMetrics();
+
+export const profilesUpdated = new client.Counter({
+  name: "user_profiles_updated_total",
+  help: "Total profile upserts (create/update)",
+});
+
+export const httpRequestDuration = new client.Histogram({
+  name: "user_profile_http_request_duration_seconds",
+  help: "HTTP request duration in seconds",
+  labelNames: ["method", "route", "status_code"],
+  buckets: [0.01, 0.05, 0.1, 0.2, 0.5, 1, 2, 5],
+});

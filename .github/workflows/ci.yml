@@ -2,21 +2,54 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
 
 jobs:
-  auth-service:
+  test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: services/auth
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: "20"
-      - run: npm install
-      - run: npm run lint
-      - run: npm test
-      - run: npm run build
+          node-version: 20
+          cache: "npm"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Prepare env
+        run: |
+          cp .env.example .env
+
+      - name: Start dependencies (Postgres + Redis)
+        run: |
+          docker compose up -d postgres redis
+          docker compose ps
+
+      - name: Run workspace tests
+        env:
+          # Auth service tests require real auth behavior, others can bypass auth.
+          TEST_BYPASS_AUTH: "1"
+          # Default local mappings from docker-compose (override if you changed POSTGRES_PORT)
+          DATABASE_URL: "postgres://postgres:postgres@localhost:5432/auth_db"
+          REDIS_URL: "redis://localhost:6379"
+          AUTH_SERVICE_URL: "http://localhost:8081"
+          AUTH_SERVICE_TOKEN: "dev-internal-token"
+        run: |
+          # Auth tests manage their own envs; keep them explicit.
+          npm -w @madrasti/auth-service test
+          # Step 3: packages + new services
+          npm -w @madrasti/auth-sdk test
+          npm -w @madrasti/event-bus test
+          npm -w @madrasti/student-service test
+          npm -w @madrasti/school-service test
+          npm -w @madrasti/user-profile-service test
+
+      - name: Shutdown
+        if: always()
+        run: docker compose down -v

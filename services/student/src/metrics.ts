@@ -1,0 +1,16 @@
+import client from "prom-client";
+
+client.collectDefaultMetrics();
+
+export const studentsCreated = new client.Counter({
+  name: "students_created_total",
+  help: "Total students created",
+  labelNames: ["source"],
+});
+
+export const httpRequestDuration = new client.Histogram({
+  name: "student_http_request_duration_seconds",
+  help: "HTTP request duration in seconds",
+  labelNames: ["method", "route", "status_code"],
+  buckets: [0.01, 0.05, 0.1, 0.2, 0.5, 1, 2, 5],
+});

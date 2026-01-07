@@ -1,0 +1,22 @@
+import Joi from "joi";
+
+export const createStudentSchema = Joi.object({
+  student_code: Joi.string().min(1).max(50).required(),
+  first_name_ar: Joi.string().min(1).max(100).required(),
+  last_name_ar: Joi.string().min(1).max(100).required(),
+  first_name_en: Joi.string().min(1).max(100).allow(null, ""),
+  last_name_en: Joi.string().min(1).max(100).allow(null, ""),
+  date_of_birth: Joi.date().iso().required(),
+  gender: Joi.string().valid("male", "female").required(),
+  nationality: Joi.string().max(50).allow(null, ""),
+  enrollment_date: Joi.date().iso().required(),
+  enrollment_status: Joi.string().max(50).default("active"),
+  current_class_id: Joi.string().uuid().allow(null, ""),
+  current_grade_level_id: Joi.string().uuid().allow(null, ""),
+});
+
+export const listStudentsSchema = Joi.object({
+  search: Joi.string().allow("", null),
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(20),
+});

@@ -1,0 +1,16 @@
+{
+  "name": "madrasti",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "lint": "npm -ws run lint",
+    "test": "npm -ws run test",
+    "build": "npm -ws run build",
+    "dev:auth": "npm -w @madrasti/auth-service run dev",
+    "dev:all": "powershell -ExecutionPolicy Bypass -File ./run_all.ps1"
+  }
+}

@@ -10,7 +10,22 @@ export const createSchoolTenant = asyncHandler(async (req: Request, res: Respons
   if (!req.auth) throw new HttpError(401, "AUTH_MISSING", "Not authenticated");
   if (!canCreateSchool(req.auth.role)) throw new HttpError(403, "FORBIDDEN", "Not allowed");
 
-  const body = req.body as any;
+  type CreateSchoolBody = {
+    name_ar: string;
+    name_en?: string | null;
+    name_fr?: string | null;
+    slug: string;
+    school_type?: string | null;
+    contact_email?: string | null;
+    contact_phone?: string | null;
+    primary_language?: "ar" | "en" | "fr";
+    admin_email: string;
+    admin_password: string;
+    admin_first_name_ar: string;
+    admin_last_name_ar: string;
+  };
+
+  const body = req.body as CreateSchoolBody;
 
   const school = await createSchool({
     nameAr: body.name_ar,

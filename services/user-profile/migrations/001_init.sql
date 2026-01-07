@@ -1,0 +1,13 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TABLE IF NOT EXISTS user_profiles (
+  id UUID PRIMARY KEY, -- user_id from auth service
+  first_name_ar VARCHAR(100),
+  last_name_ar VARCHAR(100),
+  date_of_birth DATE,
+  gender VARCHAR(20),
+  photo_url TEXT,
+  address JSONB,
+  bio TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);

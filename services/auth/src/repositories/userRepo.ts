@@ -59,26 +59,23 @@ export async function createUser(params: {
       params.lastNameAr ?? null,
     ]
   );
-  return res.rows[0];
+
+  const row = res.rows[0];
+  if (!row) {
+    throw new Error("createUser: INSERT returned no row");
+  }
+
+  return { id: row.id };
 }
 
 export async function setUser2faSecret(userId: string, secretBase32: string): Promise<void> {
-  await pool.query(
-    `UPDATE users SET two_factor_secret=$2 WHERE id=$1`,
-    [userId, secretBase32]
-  );
+  await pool.query(`UPDATE users SET two_factor_secret=$2 WHERE id=$1`, [userId, secretBase32]);
 }
 
 export async function enableUser2fa(userId: string): Promise<void> {
-  await pool.query(
-    `UPDATE users SET two_factor_enabled=true WHERE id=$1`,
-    [userId]
-  );
+  await pool.query(`UPDATE users SET two_factor_enabled=true WHERE id=$1`, [userId]);
 }
 
 export async function markUserLastLogin(userId: string): Promise<void> {
-  await pool.query(
-    `UPDATE users SET last_login_at=NOW() WHERE id=$1`,
-    [userId]
-  );
+  await pool.query(`UPDATE users SET last_login_at=NOW() WHERE id=$1`, [userId]);
 }

@@ -1,4 +1,11 @@
-export const UserRole = {
+/**
+ * Centralized role definitions.
+ *
+ * IMPORTANT: Do not export a `type` and a `const` with the same name, because
+ * eslint's core `no-redeclare` rule will flag it.
+ */
+
+export const USER_ROLES = {
   SUPER_ADMIN: "super_admin",
   SCHOOL_ADMIN: "school_admin",
   TEACHER: "teacher",
@@ -6,16 +13,11 @@ export const UserRole = {
   STUDENT: "student",
   ACCOUNTANT: "accountant",
   LIBRARIAN: "librarian",
+  STAFF: "staff",
 } as const;
 
-export type UserRole = typeof UserRole[keyof typeof UserRole];
+export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES];
 
 export function isStaffRole(role: UserRole): boolean {
-  return (
-    role === UserRole.SUPER_ADMIN ||
-    role === UserRole.SCHOOL_ADMIN ||
-    role === UserRole.TEACHER ||
-    role === UserRole.ACCOUNTANT ||
-    role === UserRole.LIBRARIAN
-  );
+  return role === USER_ROLES.SUPER_ADMIN || role === USER_ROLES.SCHOOL_ADMIN || role === USER_ROLES.STAFF;
 }

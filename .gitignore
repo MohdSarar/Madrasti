@@ -5,3 +5,5 @@ dist
 !.env.example
 coverage
 .DS_Store
+node_modules/
+services/**/node_modules/

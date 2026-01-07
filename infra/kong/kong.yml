@@ -1,0 +1,35 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: auth
+    url: http://auth:8081
+    routes:
+      - name: auth-route
+        paths:
+          - /auth
+        strip_path: true
+
+  - name: student
+    url: http://student:8082
+    routes:
+      - name: student-route
+        paths:
+          - /student
+        strip_path: true
+
+  - name: school
+    url: http://school:8083
+    routes:
+      - name: school-route
+        paths:
+          - /school
+        strip_path: true
+
+  - name: user
+    url: http://user-profile:8084
+    routes:
+      - name: user-route
+        paths:
+          - /user
+        strip_path: true
