@@ -22,6 +22,10 @@ export function buildRouter() {
   r.post("/api/v1/grades", Grade.create);
   r.post("/api/v1/grades/bulk", Grade.bulk);
   r.get("/api/v1/grades/student/:studentId/gpa", Grade.gpa);
+  r.get(
+    "/api/v1/grades/student/:studentId/period/:periodId/gpa",
+    Grade.getStudentGPA
+  );
 
   return r;
 }

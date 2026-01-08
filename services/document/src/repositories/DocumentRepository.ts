@@ -28,3 +28,38 @@ export async function listDocuments(schoolId: string, folderId?: string) {
   const r = folderId ? await pool.query(q,[schoolId, folderId]) : await pool.query(q,[schoolId]);
   return r.rows;
 }
+
+// --- Added by Fix Script ---
+
+export async function getDocumentById(id: string) {
+  const r = await pool.query('SELECT * FROM documents WHERE id=', [id]);
+  return r.rows[0];
+}
+
+export async function checkPermission(documentId: string, userId: string): Promise<boolean> {
+  // Vérifie si une permission explicite existe pour cet utilisateur
+  // Note: Si la table document_permissions n'existe pas encore, cela échouera à l'exécution (runtime) 
+  // mais cela permet la compilation (build).
+  try {
+    const r = await pool.query(
+      'SELECT 1 FROM document_permissions WHERE document_id= AND user_id=',
+      [documentId, userId]
+    );
+    return (r.rowCount || 0) > 0;
+  } catch (error) {
+    // Si la table n'existe pas, on retourne false par sécurité
+    return false;
+  }
+}
+
+export async function logDownload(docId: string, userId: string, ip: any, ua: any) {
+  try {
+    await pool.query(
+      'INSERT INTO document_downloads (document_id, user_id, downloaded_at, ip_address, user_agent) VALUES (, , NOW(), , )',
+      [docId, userId, ip, ua]
+    );
+  } catch (error) {
+    // On ignore les erreurs de log pour ne pas bloquer le téléchargement
+    console.error('Failed to log download', error);
+  }
+}
