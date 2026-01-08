@@ -42,7 +42,7 @@ services:
       - ./.env
     environment:
       HOST: 0.0.0.0
-      SECURITY_SERVICE_URL: ${SECURITY_SERVICE_URL:-http://security:8085}
+      SECURITY_SERVICE_URL: ${SECURITY_SERVICE_URL:-http://security:8091}
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
     depends_on:
       postgres:
@@ -69,9 +69,11 @@ services:
     build:
       context: .
       dockerfile: services/student/Dockerfile
+    env_file:
+      - ./.env
     environment:
       HOST: 0.0.0.0
-      SECURITY_SERVICE_URL: ${SECURITY_SERVICE_URL:-http://security:8085}
+      SECURITY_SERVICE_URL: ${SECURITY_SERVICE_URL:-http://security:8091}
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
       TEST_BYPASS_AUTH: "0"
       PORT: 8082
@@ -106,9 +108,11 @@ services:
     build:
       context: .
       dockerfile: services/school/Dockerfile
+    env_file:
+      - ./.env
     environment:
       HOST: 0.0.0.0
-      SECURITY_SERVICE_URL: ${SECURITY_SERVICE_URL:-http://security:8085}
+      SECURITY_SERVICE_URL: ${SECURITY_SERVICE_URL:-http://security:8091}
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
       TEST_BYPASS_AUTH: "0"
       PORT: 8083
@@ -144,9 +148,12 @@ services:
     build:
       context: .
       dockerfile: services/user-profile/Dockerfile
+    env_file:
+      - ./.env
+
     environment:
       HOST: 0.0.0.0
-      SECURITY_SERVICE_URL: ${SECURITY_SERVICE_URL:-http://security:8085}
+      SECURITY_SERVICE_URL: ${SECURITY_SERVICE_URL:-http://security:8091}
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
       TEST_BYPASS_AUTH: "0"
       PORT: 8084
@@ -204,7 +211,7 @@ services:
       - ./.env
     environment:
       HOST: 0.0.0.0
-      PORT: 8085
+      PORT: ${SECURITY_PORT:-8091}
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
       SERVICE_NAME: security
@@ -212,6 +219,39 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    ports:
+      - "${SECURITY_PORT:-8091}:${SECURITY_PORT:-8091}"
+    command: ["npm", "run", "dev"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8091/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+
+  academic:
+    build:
+      context: .
+      dockerfile: services/academic/Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8085
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth:8081
+      AUTH_SERVICE_TOKEN: ${AUTH_SERVICE_TOKEN:-change-me-in-prod}
+      SERVICE_NAME: academic
+      APP_VERSION: dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth:
+        condition: service_started
     ports:
       - 8085:8085
     command: ["npm", "run", "dev"]
@@ -221,6 +261,136 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+
+  attendance:
+    build:
+      context: .
+      dockerfile: services/attendance/Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8086
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth:8081
+      AUTH_SERVICE_TOKEN: ${AUTH_SERVICE_TOKEN:-change-me-in-prod}
+      SERVICE_NAME: attendance
+      APP_VERSION: dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth:
+        condition: service_started
+    ports:
+      - 8086:8086
+    command: ["npm", "run", "dev"]
+
+  scheduling:
+    build:
+      context: .
+      dockerfile: services/scheduling/Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8087
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth:8081
+      AUTH_SERVICE_TOKEN: ${AUTH_SERVICE_TOKEN:-change-me-in-prod}
+      SERVICE_NAME: scheduling
+      APP_VERSION: dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth:
+        condition: service_started
+    ports:
+      - 8087:8087
+    command: ["npm", "run", "dev"]
+
+  reporting:
+    build:
+      context: .
+      dockerfile: services/reporting/Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8088
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth:8081
+      AUTH_SERVICE_TOKEN: ${AUTH_SERVICE_TOKEN:-change-me-in-prod}
+      SERVICE_NAME: reporting
+      APP_VERSION: dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth:
+        condition: service_started
+    ports:
+      - 8088:8088
+    command: ["npm", "run", "dev"]
+
+  notification:
+    build:
+      context: .
+      dockerfile: services/notification/Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8089
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth:8081
+      AUTH_SERVICE_TOKEN: ${AUTH_SERVICE_TOKEN:-change-me-in-prod}
+      SERVICE_NAME: notification
+      APP_VERSION: dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth:
+        condition: service_started
+    ports:
+      - 8089:8089
+    command: ["npm", "run", "dev"]
+
+  document:
+    build:
+      context: .
+      dockerfile: services/document/Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8090
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      REDIS_URL: redis://redis:6379
+      AUTH_SERVICE_URL: http://auth:8081
+      AUTH_SERVICE_TOKEN: ${AUTH_SERVICE_TOKEN:-change-me-in-prod}
+      SERVICE_NAME: document
+      APP_VERSION: dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth:
+        condition: service_started
+    ports:
+      - 8090:8090
+    command: ["npm", "run", "dev"]
 
 
   kong:

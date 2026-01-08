@@ -13,5 +13,5 @@ COPY services/security ./services/security
 WORKDIR /repo/services/security
 RUN npm run build
 
-EXPOSE 8085
+EXPOSE 8091
 CMD ["npm","run","start"]

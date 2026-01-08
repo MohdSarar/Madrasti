@@ -1,0 +1,22 @@
+import { pool } from "../db.js";
+
+export async function saveReport(data: any) {
+  const r = await pool.query(
+    `INSERT INTO generated_reports (school_id, report_type, template_id, student_id, academic_period_id, data, status, generated_by)
+     VALUES ($1,$2,$3,$4,$5,$6,'draft',$7) RETURNING *`,
+    [data.school_id,data.report_type,data.template_id ?? null,data.student_id,data.academic_period_id, JSON.stringify(data.data), data.generated_by]
+  );
+  return r.rows[0];
+}
+
+export async function getReport(id: string) {
+  const r = await pool.query(`SELECT * FROM generated_reports WHERE id=$1`, [id]);
+  return r.rows[0] ?? null;
+}
+
+export async function listReports(schoolId: string, studentId?: string) {
+  const q = studentId ? `SELECT * FROM generated_reports WHERE school_id=$1 AND student_id=$2 ORDER BY generated_at DESC`
+                      : `SELECT * FROM generated_reports WHERE school_id=$1 ORDER BY generated_at DESC`;
+  const r = studentId ? await pool.query(q, [schoolId, studentId]) : await pool.query(q, [schoolId]);
+  return r.rows;
+}
