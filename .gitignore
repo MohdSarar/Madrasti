@@ -7,3 +7,7 @@ coverage
 .DS_Store
 node_modules/
 services/**/node_modules/
+start-madrasti-for-dev.ps1
+# Next.js
+frontend/.next
+frontend/node_modules
