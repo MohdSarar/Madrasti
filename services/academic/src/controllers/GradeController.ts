@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+﻿import type { Request, Response } from "express";
 import { createGradeSchema, bulkGradesSchema } from "../validation/grades.js";
 import { GradeCalculator } from "../services/GradeCalculator.js";
 import { GPACalculator } from "../services/GPACalculator.js";
@@ -6,6 +6,10 @@ import * as repo from "../repositories/GradeRepository.js";
 import { redis } from "../redis.js";
 import { pool } from "../db.js";
 import { eventBus } from "../eventBus.js";
+
+function isUuid(v: string): boolean {
+  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(v);
+}
 
 export async function create(req: Request, res: Response) {
   const body = createGradeSchema.parse(req.body);
@@ -127,11 +131,20 @@ export async function byStudent(req: Request, res: Response) {
 export async function getStudentGPA(req: Request, res: Response) {
   const { studentId, periodId } = req.params as { studentId: string; periodId: string };
 
+  // Route existence checks in CI hit this endpoint with placeholder ids like "test".
+  // UUID columns would throw (invalid input syntax) → 500. Validate early and return 400 instead.
+  if (!isUuid(studentId) || !isUuid(periodId)) {
+    return res.status(400).json({
+      code: "INVALID_ID",
+      message: "studentId and periodId must be UUIDs",
+      details: { studentId, periodId },
+    });
+  }
+
   try {
     const out = await GPACalculator.calculateGPA(studentId, periodId);
     res.json(out);
   } catch (error) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const err = error as any;
     res.status(500).json({
       code: "GPA_CALCULATION_ERROR",
@@ -140,6 +153,7 @@ export async function getStudentGPA(req: Request, res: Response) {
     });
   }
 }
+
 
 // Backward-compatible endpoint: /grades/student/:studentId/gpa?period_id=...
 export async function gpa(req: Request, res: Response) {
@@ -151,3 +165,18 @@ export async function gpa(req: Request, res: Response) {
   req.params = { ...req.params, periodId } as any;
   return getStudentGPA(req, res);
 }
+
+export async function createBulkGrades(req: Request, res: Response) {
+  try {
+    const grades = req.body.grades || [];
+    const results = [];
+    for (const gradeData of grades) {
+      const grade = await repo.upsertGrade(gradeData);
+      results.push(grade);
+    }
+    res.status(201).json({ success: true, count: results.length, grades: results });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+

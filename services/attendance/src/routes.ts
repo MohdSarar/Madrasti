@@ -9,6 +9,7 @@ export function buildRouter() {
   r.get("/api/v1/attendance/by-date/:date", Attendance.byDate);
   r.get("/api/v1/attendance/by-date/:date/class/:classId", Attendance.byDate);
   r.get("/api/v1/attendance/student/:studentId", Attendance.byStudent);
+  r.get("/api/v1/attendance/summary/:studentId/:periodId", Attendance.summary);
 
   r.get("/api/v1/leave-requests", Leave.list);
   r.post("/api/v1/leave-requests", Leave.create);

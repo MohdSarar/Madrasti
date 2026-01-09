@@ -15,6 +15,12 @@ services:
       - ./services/school/migrations:/migrations/school:ro
       - ./services/user-profile/migrations:/migrations/user-profile:ro
       - ./services/security/migrations:/migrations/security:ro
+      - ./services/academic/migrations:/migrations/academic:ro
+      - ./services/attendance/migrations:/migrations/attendance:ro
+      - ./services/scheduling/migrations:/migrations/scheduling:ro
+      - ./services/reporting/migrations:/migrations/reporting:ro
+      - ./services/notification/migrations:/migrations/notification:ro
+      - ./services/document/migrations:/migrations/document:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
       interval: 5s
@@ -77,7 +83,7 @@ services:
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
       TEST_BYPASS_AUTH: "0"
       PORT: 8082
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
       REDIS_URL: redis://redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
@@ -116,7 +122,7 @@ services:
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
       TEST_BYPASS_AUTH: "0"
       PORT: 8083
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
       REDIS_URL: redis://redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
@@ -157,7 +163,7 @@ services:
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
       TEST_BYPASS_AUTH: "0"
       PORT: 8084
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/postgres
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
       REDIS_URL: redis://redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}

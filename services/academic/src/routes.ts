@@ -1,4 +1,4 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import * as Subject from "./controllers/SubjectController.js";
 import * as Grade from "./controllers/GradeController.js";
 
@@ -20,7 +20,7 @@ export function buildRouter() {
   // Grades
   r.get("/api/v1/grades/by-student/:studentId", Grade.byStudent);
   r.post("/api/v1/grades", Grade.create);
-  r.post("/api/v1/grades/bulk", Grade.bulk);
+  r.post("/api/v1/grades/bulk", Grade.createBulkGrades);
   r.get("/api/v1/grades/student/:studentId/gpa", Grade.gpa);
   r.get(
     "/api/v1/grades/student/:studentId/period/:periodId/gpa",
@@ -29,3 +29,4 @@ export function buildRouter() {
 
   return r;
 }
+

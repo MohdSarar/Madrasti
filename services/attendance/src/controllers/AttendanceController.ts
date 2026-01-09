@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+﻿import type { Request, Response } from "express";
 import { markClassSchema } from "../validation/attendance.js";
 import * as repo from "../repositories/AttendanceRepository.js";
 
@@ -36,3 +36,30 @@ export async function byStudent(req: Request, res: Response) {
   const rows = await repo.listByStudent(req.params.studentId!);
   res.json(rows);
 }
+
+
+export async function summary(req: Request, res: Response) {
+  const studentId = req.params.studentId;
+  const periodId = req.params.periodId;
+  
+  if (!studentId || !periodId) {
+    return res.status(400).json({ code: "VALIDATION_ERROR", message: "studentId and periodId required" });
+  }
+  
+  const row: any = await repo.getSummary(studentId, periodId);
+
+  const total = Number(row.total_days ?? 0);
+  const present = Number(row.present_days ?? 0);
+  const excused = Number(row.excused_days ?? 0);
+  const rate = total > 0 ? ((present + excused) / total) * 100 : 0;
+
+  res.json({
+    total_days: total,
+    present_days: present,
+    absent_days: Number(row.absent_days ?? 0),
+    tardy_days: Number(row.tardy_days ?? 0),
+    excused_days: excused,
+    attendance_rate: Number.isFinite(rate) ? Number(rate.toFixed(1)) : 0,
+  });
+}
+

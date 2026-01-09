@@ -1,6 +1,7 @@
 import { pool } from "../db.js";
 import { logger } from "../logger.js";
 import { eventBus } from "../eventBus.js";
+import { renderTemplate } from "./templateRenderer.js";
 
 export type NotificationChannel = "email" | "sms" | "push" | "in_app";
 export type NotificationPriority = "high" | "normal" | "low";
@@ -139,17 +140,8 @@ export class NotificationService {
     return result.rows[0] ?? null;
   }
 
-  private static renderTemplate(template: TemplateRow, data: Record<string, any>): { subject: string; body: string } {
-    let subject = template.subject_template ?? "";
-    let body = template.body_template ?? "";
-
-    for (const key of Object.keys(data)) {
-      const regex = new RegExp(`{{${key}}}`, "g");
-      subject = subject.replace(regex, String(data[key]));
-      body = body.replace(regex, String(data[key]));
-    }
-
-    return { subject, body };
+  private static renderTemplate(template: any, data: Record<string, any>) {
+    return renderTemplate(template, data);
   }
 
   private static async saveNotification(payload: {

@@ -25,3 +25,21 @@ export async function listByStudent(studentId: string) {
   const r = await pool.query(`SELECT * FROM attendance_records WHERE student_id=$1 ORDER BY attendance_date DESC`, [studentId]);
   return r.rows;
 }
+
+
+export async function getSummary(studentId: string, periodId: string) {
+  const r = await pool.query(
+    `SELECT * FROM attendance_summary WHERE student_id=$1 AND academic_period_id=$2 LIMIT 1`,
+    [studentId, periodId]
+  );
+  return r.rows[0] ?? {
+    student_id: studentId,
+    academic_period_id: periodId,
+    total_days: 0,
+    present_days: 0,
+    absent_days: 0,
+    tardy_days: 0,
+    excused_days: 0,
+    attendance_rate: 0,
+  };
+}
