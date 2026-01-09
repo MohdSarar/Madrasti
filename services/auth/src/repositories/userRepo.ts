@@ -87,3 +87,35 @@ export async function updatePasswordHash(userId: string, password_hash: string):
     [userId, password_hash]
   );
 }
+
+
+export async function setEmailVerified(userId: string, verified: boolean): Promise<void> {
+  await pool.query("UPDATE users SET email_verified=$2, updated_at=NOW() WHERE id=$1", [userId, verified]);
+}
+
+export async function gdprAnonymizeUser(params: { userId: string; reason?: string }): Promise<void> {
+  const { userId, reason } = params;
+  // Keep email non-null to satisfy CHECK(email IS NOT NULL OR phone IS NOT NULL)
+  const redactedEmail = `deleted+${userId}@redacted.local`;
+  await pool.query(
+    `UPDATE users
+        SET email = $2,
+            phone = NULL,
+            first_name_ar = NULL,
+            last_name_ar = NULL,
+            first_name_en = NULL,
+            last_name_en = NULL,
+            first_name_fr = NULL,
+            last_name_fr = NULL,
+            address = NULL,
+            emergency_contact = NULL,
+            is_active = FALSE,
+            email_verified = FALSE,
+            phone_verified = FALSE,
+            gdpr_deleted_at = NOW(),
+            gdpr_reason = $3,
+            updated_at = NOW()
+      WHERE id = $1`,
+    [userId, redactedEmail, reason ?? null]
+  );
+}

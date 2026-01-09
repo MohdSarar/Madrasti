@@ -16,6 +16,9 @@ import {
   resetPasswordRequestSchema,
   resetPasswordConfirmSchema,
   securitySettingsSchema,
+  emailVerificationRequestSchema,
+  emailVerificationConfirmSchema,
+  gdprForgetSchema,
 } from "./validation/schemas.js";
 import * as authController from "./controllers/authController.js";
 import * as superAdminController from "./controllers/superAdminController.js";
@@ -223,5 +226,62 @@ export function buildRoutes() {
     authController.updateSecuritySettings
   );
 
+
+
+  /**
+   * @openapi
+   * /api/v1/auth/email/verify/request:
+   *   post:
+   *     summary: Request an email verification token for current user
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Verification email sent (best-effort)
+   */
+  r.post(
+    "/api/v1/auth/email/verify/request",
+    authRateLimit as any,
+    requireAuth,
+    validate(emailVerificationRequestSchema),
+    authController.requestEmailVerification
+  );
+
+  /**
+   * @openapi
+   * /api/v1/auth/email/verify/confirm:
+   *   post:
+   *     summary: Confirm email verification with token
+   *     responses:
+   *       200:
+   *         description: Email verified
+   *       400:
+   *         description: Invalid or expired token
+   */
+  r.post(
+    "/api/v1/auth/email/verify/confirm",
+    authRateLimit as any,
+    validate(emailVerificationConfirmSchema),
+    authController.confirmEmailVerification
+  );
+
+  /**
+   * @openapi
+   * /api/v1/auth/gdpr/forget:
+   *   post:
+   *     summary: GDPR forget-me for current user (minimization + revoke sessions)
+   *     security:
+   *       - bearerAuth: []
+   *     responses:
+   *       200:
+   *         description: Accepted
+   */
+  r.post(
+    "/api/v1/auth/gdpr/forget",
+    authRateLimit as any,
+    requireAuth,
+    validate(gdprForgetSchema),
+    authController.gdprForgetMe
+  );
   return r;
 }

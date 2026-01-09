@@ -62,3 +62,17 @@ export const resetPasswordConfirmSchema = Joi.object({
 export const securitySettingsSchema = Joi.object({
   // extension point
 }).unknown(true);
+
+
+export const emailVerificationRequestSchema = Joi.object({
+  // optional override to support admin-trigger flows later
+  user_id: Joi.string().uuid().optional(),
+});
+
+export const emailVerificationConfirmSchema = Joi.object({
+  token: Joi.string().min(10).max(512).required(),
+});
+
+export const gdprForgetSchema = Joi.object({
+  reason: Joi.string().max(500).allow("", null).optional(),
+});

@@ -4,6 +4,7 @@ import { HttpError } from "../utils/http.js";
 import { findUserByEmail, markUserLastLogin, setUser2faSecret, enableUser2fa, findUserById } from "../repositories/userRepo.js";
 import * as userRepo from "../repositories/userRepo.js";
 import * as passwordResetRepo from "../repositories/passwordResetRepo.js";
+import * as emailVerificationRepo from "../repositories/emailVerificationRepo.js";
 import * as sessionRepo from "../repositories/sessionRepo.js";
 import { verifyPassword, hashPassword } from "../services/password.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../services/jwt.js";
@@ -14,6 +15,7 @@ import { generateTotpSecret, otpauthToQrDataUrl, verifyTotp } from "../services/
 import { generateOtpCode, storeOtp, verifyOtp } from "../services/otp.js";
 import { getSmsProvider } from "../services/smsProvider.js";
 import crypto from "crypto";
+import { randomToken, sha256 } from "../utils/crypto.js";
 import { getSecurityClient, getSecurityEmitter } from "../services/securitySdk.js";
 
 function deviceInfoFromReq(req: Request) {
@@ -389,4 +391,120 @@ export const getSecuritySettings = asyncHandler(async (_req: Request, res: Respo
 
 export const updateSecuritySettings = asyncHandler(async (_req: Request, res: Response) => {
   return res.json({ success: true });
+});
+
+
+type EmailVerificationRequestBody = { user_id?: string };
+export const requestEmailVerification = asyncHandler(async (req: Request, res: Response) => {
+  const auth = (req as any).auth as { userId: string; schoolId?: string; role?: string };
+  const body = req.body as EmailVerificationRequestBody;
+  const targetUserId = body.user_id ?? auth.userId;
+
+  // Only allow requesting for self for now (enterprise: allow staff/admin to request for others).
+  if (targetUserId !== auth.userId) {
+    throw new HttpError(403, "FORBIDDEN", "Can only request email verification for current user");
+  }
+
+  const user = await findUserById(targetUserId);
+  if (!user) throw new HttpError(404, "USER_NOT_FOUND", "User not found");
+  if (!user.email) throw new HttpError(400, "EMAIL_REQUIRED", "User has no email");
+  // If already verified, idempotent success
+  const row = await (await import("../db.js")).pool.query<{ email_verified: boolean }>(
+    "SELECT email_verified FROM users WHERE id=$1",
+    [user.id]
+  );
+  if (row.rows[0]?.email_verified) {
+    return res.json({ success: true, data: { alreadyVerified: true } });
+  }
+
+  const token = randomToken(32);
+  const tokenHash = sha256(token);
+  const expires = new Date(Date.now() + config.emailVerificationTokenTtlMinutes * 60 * 1000);
+
+  await emailVerificationRepo.deleteTokensForUser(user.id);
+  await emailVerificationRepo.createToken({ userId: user.id, tokenHash, expiresAt: expires });
+
+  // Best-effort audit trail
+  const securityEmitter = getSecurityEmitter();
+  if (securityEmitter) {
+    const schoolId = user.school_id ?? undefined;
+    await securityEmitter.emit({
+      event_type: "EMAIL_VERIFICATION_REQUESTED",
+      event_source: "auth",
+      user_id: user.id,
+      ...(schoolId ? { school_id: schoolId } : {}),
+      action: "EMAIL_VERIFY_REQUEST",
+      status: "INFO",
+      details: { email: user.email, expiresAt: expires.toISOString() },
+      severity: "LOW",
+    });
+  }
+
+  const data: any = { sent: true };
+  if (config.exposeEmailVerificationToken) data.token = token; // dev/test convenience only
+  return res.json({ success: true, data });
+});
+
+type EmailVerificationConfirmBody = { token: string };
+export const confirmEmailVerification = asyncHandler(async (req: Request, res: Response) => {
+  const { token } = req.body as EmailVerificationConfirmBody;
+  const tokenHash = sha256(token);
+  const consumed = await emailVerificationRepo.consumeToken({ tokenHash });
+  if (!consumed) {
+    throw new HttpError(400, "INVALID_TOKEN", "Invalid or expired verification token");
+  }
+
+  await userRepo.setEmailVerified(consumed.userId, true);
+  await emailVerificationRepo.deleteTokensForUser(consumed.userId);
+
+  const securityEmitter = getSecurityEmitter();
+  if (securityEmitter) {
+    await securityEmitter.emit({
+      event_type: "EMAIL_VERIFIED",
+      event_source: "auth",
+      user_id: consumed.userId,
+      action: "EMAIL_VERIFY_CONFIRM",
+      status: "SUCCESS",
+      details: { verifiedAt: new Date().toISOString() },
+      severity: "LOW",
+    });
+  }
+
+  return res.json({ success: true, data: { verified: true } });
+});
+
+type GdprForgetBody = { reason?: string };
+export const gdprForgetMe = asyncHandler(async (req: Request, res: Response) => {
+  const auth = (req as any).auth as { userId: string; schoolId?: string };
+  const body = req.body as GdprForgetBody;
+
+  // Best-effort notify security service for audit/compliance tracking
+  const securityClient = getSecurityClient();
+  if (securityClient) {
+    const payload = auth.schoolId ? { userId: auth.userId, schoolId: auth.schoolId } : { userId: auth.userId };
+    await securityClient.gdprForget(payload).catch(() => undefined);
+  }
+
+  // With exactOptionalPropertyTypes, avoid passing explicit undefined for optional props.
+  const anonymizeArgs: { userId: string; reason?: string } = { userId: auth.userId };
+  if (body.reason) anonymizeArgs.reason = body.reason;
+  await userRepo.gdprAnonymizeUser(anonymizeArgs);
+  await sessionRepo.deleteAllForUser(auth.userId);
+
+  const securityEmitter = getSecurityEmitter();
+  if (securityEmitter) {
+    const schoolId = auth.schoolId ?? undefined;
+    await securityEmitter.emit({
+      event_type: "GDPR_FORGET_REQUESTED",
+      event_source: "auth",
+      user_id: auth.userId,
+      ...(schoolId ? { school_id: schoolId } : {}),
+      action: "GDPR_FORGET",
+      status: "INFO",
+      details: { reason: body.reason ?? null },
+      severity: "MEDIUM",
+    });
+  }
+
+  return res.json({ success: true, data: { status: "accepted" } });
 });

@@ -62,6 +62,18 @@ export const config = {
   sessionIdleTimeoutSeconds: parseInt(process.env['SESSION_IDLE_TIMEOUT_SECONDS'] ?? "7200", 10),
 
   otpCodeTtlSeconds: parseInt(process.env['OTP_CODE_TTL_SECONDS'] ?? "300", 10),
+
+  // Step 4: Email verification
+  // TTL in minutes for the email verification token
+  emailVerificationTokenTtlMinutes: parseInt(
+    process.env["EMAIL_VERIFICATION_TOKEN_TTL_MINUTES"] ?? "60",
+    10
+  ),
+
+  // Step 4: Dev/test convenience only. If true, the verify-token will be returned
+  // in API response (NEVER enable in production).
+  exposeEmailVerificationToken:
+    (process.env["EXPOSE_EMAIL_VERIFICATION_TOKEN"] ?? "false").toLowerCase() === "true",
 };
 
 // Secret strength checks (production only)

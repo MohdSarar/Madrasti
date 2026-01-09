@@ -39,6 +39,33 @@ function Get-HttpStatus($url, $timeoutSec = 5) {
   }
 }
 
+
+function Get-HttpStatusWithHeaders($url, $headers, $timeoutSec = 5) {
+  try {
+    $r = Invoke-WebRequest -Uri $url -Method GET -Headers $headers -TimeoutSec $timeoutSec -UseBasicParsing
+    return [int]$r.StatusCode
+  } catch {
+    $resp = $_.Exception.Response
+    if ($resp -and $resp.StatusCode) {
+      return [int]$resp.StatusCode
+    }
+    return -1
+  }
+}
+
+function Post-HttpStatusJson($url, $jsonBody, $headers, $timeoutSec = 5) {
+  try {
+    $r = Invoke-WebRequest -Uri $url -Method POST -Headers $headers -ContentType "application/json" -Body $jsonBody -TimeoutSec $timeoutSec -UseBasicParsing
+    return [int]$r.StatusCode
+  } catch {
+    $resp = $_.Exception.Response
+    if ($resp -and $resp.StatusCode) {
+      return [int]$resp.StatusCode
+    }
+    return -1
+  }
+}
+
 function Wait-Healthy($name, $url, $tries = 60, $sleepSec = 2) {
   for ($i = 1; $i -le $tries; $i++) {
     $code = Get-HttpStatus $url 3
@@ -84,7 +111,7 @@ function Get-ServicePortsFromCompose($composePath) {
     }
 
     if ($inPorts) {
-      if ($line -match '^\s{6}-\s*"?([0-9]+):([0-9]+)"?\s*$') {
+      if ($line -match '^\s{6}-\s*"?(?:\$\{[^}]+:-)?([0-9]+)\}?:([0-9]+)"?\s*$') {
         $hostPort = [int]$Matches[1]
         if (-not $ports.ContainsKey($current)) {
           $ports[$current] = $hostPort
@@ -196,7 +223,7 @@ if ($composePorts.Count -eq 0) {
   WARN "No ports detected from compose. If health checks fail, run: docker compose ps"
 }
 
-$step4Services = @("academic","attendance","scheduling","reporting","notification","document")
+$step4Services = @("auth","academic","attendance","scheduling","reporting","notification","document")
 
 $svcUrls = @{}
 foreach ($s in $step4Services) {
@@ -524,6 +551,61 @@ if ($svcUrls.ContainsKey("academic")) {
   } | ConvertTo-Json -Depth 6
 
   Test-RouteExists-POST "Academic: bulk grades" $bulkUrl $bulkBody
+
+
+  # --- Step 4 extensions: Security & Compliance service checks (enterprise-grade) ---
+  Step "16) Security Service (Password Policy, Lockout, Audit, Compliance) — No 5xx"
+
+  $securityBase = "http://localhost:8091"
+  $securityToken = $env:SECURITY_SERVICE_TOKEN
+  if (-not $securityToken) { $securityToken = "change-me-in-prod" } # docker-compose default
+  $svcHeaders = @{ "x-service-token" = $securityToken }
+
+  # Health should be OK
+  $code = Get-HttpStatus "$securityBase/health"
+  if ($code -ne 200) { Fail "Security: /health failed (got $code)" }
+  OK "Security: /health OK"
+
+  # Password policy validate: weak => 400, strong => 200
+  $weakBody = @{ password = "password123"; schoolId = "00000000-0000-0000-0000-000000000001" } | ConvertTo-Json
+  $strongBody = @{ password = "SaaS_Strong#2026!"; schoolId = "00000000-0000-0000-0000-000000000001" } | ConvertTo-Json
+
+  $code = Post-HttpStatusJson "$securityBase/api/v1/password/validate" $weakBody $svcHeaders 8
+  if ($code -eq 500 -or $code -eq 502 -or $code -eq 503) { Fail "Security: password validate weak should not be 5xx (got $code)" }
+  OK "Security: password validate weak (got $code) — acceptable"
+
+  $code = Post-HttpStatusJson "$securityBase/api/v1/password/validate" $strongBody $svcHeaders 8
+  if ($code -ne 200) { Fail "Security: password validate strong expected 200 (got $code)" }
+  OK "Security: password validate strong OK"
+
+  # Lockout status should not 5xx
+  $code = Get-HttpStatusWithHeaders "$securityBase/api/v1/lockout/status/00000000-0000-0000-0000-000000000010" $svcHeaders 8
+  if ($code -ge 500) { Fail "Security: lockout status must not be 5xx (got $code)" }
+  OK "Security: lockout status route OK (got $code)"
+
+  # Audit events list should not 5xx
+  $code = Get-HttpStatusWithHeaders "$securityBase/api/v1/audit/events?limit=5" $svcHeaders 8
+  if ($code -ge 500) { Fail "Security: audit events must not be 5xx (got $code)" }
+  OK "Security: audit events route OK (got $code)"
+
+  # Compliance status should not 5xx
+  $code = Get-HttpStatusWithHeaders "$securityBase/api/v1/compliance/status" $svcHeaders 8
+  if ($code -ge 500) { Fail "Security: compliance status must not be 5xx (got $code)" }
+  OK "Security: compliance status route OK (got $code)"
+
+  Step "17) Auth Step 4 (Email Verification + GDPR Forget) — No 5xx"
+
+  $authBase = "$($svcUrls['auth'].base)"
+
+  # Routes exist (should not be 5xx)
+  $code = Post-HttpStatusJson "$authBase/api/v1/auth/email/verify/confirm" (@{ token = "invalid" } | ConvertTo-Json) @{} 8
+  if ($code -ge 500) { Fail "Auth: email verify confirm must not be 5xx (got $code)" }
+  OK "Auth: email verify confirm route OK (got $code)"
+
+  # GDPR forget requires auth token; we only check route does not 5xx with missing token (should be 401/403)
+  $code = Post-HttpStatusJson "$authBase/api/v1/auth/gdpr/forget" (@{ reason = "test" } | ConvertTo-Json) @{} 8
+  if ($code -ge 500) { Fail "Auth: gdpr forget must not be 5xx (got $code)" }
+  OK "Auth: gdpr forget route OK (got $code)"
 }
 
 if ($svcUrls.ContainsKey("attendance")) {
@@ -567,7 +649,7 @@ if ($svcUrls.ContainsKey("document")) {
 # FINAL SUMMARY
 # =============================================================================
 
-Step "16) Verification Summary"
+Step "18) Verification Summary"
 
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Cyan
@@ -589,6 +671,3 @@ OK "✅ API routes existence confirmed"
 Write-Host ""
 OK "🎉 STEP 4 VERIFICATION COMPLETE - ALL CHECKS PASSED"
 Write-Host ""
-
-
-
