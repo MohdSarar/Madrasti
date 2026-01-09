@@ -18,11 +18,11 @@ async function run() {
     lastNameAr: "عام",
   });
 
-  logger.info("super admin created", { email, password, userId: user.id });
+  logger.info({ email, password, userId: user.id }, "super admin created");
   await pool.end();
 }
 
 run().catch((err) => {
-  logger.error("create super admin failed", { err: String(err?.stack ?? err) });
+  logger.error({ err: String(err?.stack ?? err) }, "create super admin failed");
   process.exit(1);
 });

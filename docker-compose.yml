@@ -31,9 +31,9 @@ services:
   auth:
     build:
       context: ./services/auth
+      target: dev
     env_file:
       - ./.env
-      - ./services/auth/.env
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,8 +43,10 @@ services:
       - "${AUTH_PORT}:8081"
     volumes:
       - ./services/auth:/app
+      - auth_node_modules:/app/node_modules
     command: ["npm", "run", "dev"]
 
 volumes:
   pgdata:
   redisdata:
+  auth_node_modules:
