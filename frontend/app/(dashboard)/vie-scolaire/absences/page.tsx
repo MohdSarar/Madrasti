@@ -1,46 +1,54 @@
-'use client';
+﻿'use client';
 
 import * as React from 'react';
 import { format } from 'date-fns';
-import { toast } from 'sonner';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { useMarkClassAttendance } from '@/lib/hooks/use-attendance';
+import type { StudentAttendanceStatus } from '@/lib/types/attendance';
 
 type Student = { id: string; name: string; code: string };
 
-type Status = 'present' | 'absent' | 'late';
-
 const MOCK_STUDENTS: Student[] = [
-  { id: 's1', name: 'Alice Martin', code: 'A-001' },
-  { id: 's2', name: 'Youssef Benali', code: 'A-002' },
-  { id: 's3', name: 'Sarah Diallo', code: 'A-003' },
-  { id: 's4', name: 'Hugo Bernard', code: 'A-004' }
+  { id: 'test', name: 'Student Test', code: 'STD-0001' },
+  { id: 'test2', name: 'Student Two', code: 'STD-0002' },
+  { id: 'test3', name: 'Student Three', code: 'STD-0003' }
 ];
 
 export default function AbsencesPage() {
   const [date, setDate] = React.useState<Date | undefined>(new Date());
-  const [statusById, setStatusById] = React.useState<Record<string, Status>>({});
+  const [classId, setClassId] = React.useState('test');
+  const [statusById, setStatusById] = React.useState<Record<string, StudentAttendanceStatus>>({});
 
+  const mark = useMarkClassAttendance();
   const markedCount = Object.keys(statusById).length;
 
   function setAllPresent() {
-    const next: Record<string, Status> = {};
+    const next: Record<string, StudentAttendanceStatus> = {};
     for (const s of MOCK_STUDENTS) next[s.id] = 'present';
     setStatusById(next);
   }
 
-  function setStatus(id: string, status: Status) {
+  function setStatus(id: string, status: StudentAttendanceStatus) {
     setStatusById((prev) => ({ ...prev, [id]: status }));
   }
 
   async function save() {
-    // TODO: replace with real API call
-    toast.success('Appel enregistré', {
-      description: `${markedCount}/${MOCK_STUDENTS.length} élèves marqués · ${date ? format(date, 'dd/MM/yyyy') : ''}`
-    });
+    const day = date ? format(date, 'yyyy-MM-dd') : null;
+    if (!day) return;
+    if (!classId.trim()) return;
+
+    const marks = MOCK_STUDENTS.map((s: any) => ({
+      student_id: s.id,
+      status: statusById[s.id] ?? 'absent'
+    }));
+
+    await mark.mutateAsync({ date: day, class_id: classId.trim(), marks });
   }
 
   return (
@@ -50,21 +58,23 @@ export default function AbsencesPage() {
           <CardTitle>Marquer les absences</CardTitle>
         </CardHeader>
         <CardContent>
-          <Calendar mode="single" selected={date} onSelect={setDate} />
-          <p className="mt-3 text-sm text-slate-500">
-            Date sélectionnée : <span className="font-medium">{date ? format(date, 'dd/MM/yyyy') : '—'}</span>
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={setAllPresent}>
-              Tous présents
-            </Button>
-            <div className="ml-auto text-sm text-slate-500 self-center">
-              {markedCount}/{MOCK_STUDENTS.length} élèves marqués
+          <div className="space-y-4">
+            <div>
+              <div className="text-sm text-slate-500 mb-2">Classe (class_id)</div>
+              <Input value={classId} onChange={(e) => setClassId(e.target.value)} placeholder="ex: 6A" />
             </div>
-          </div>
-          <div className="mt-4">
-            <Button onClick={save} className="w-full">
-              Register Call
+
+            <Calendar mode="single" selected={date} onSelect={setDate} />
+
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={setAllPresent}>
+                Tout présent
+              </Button>
+              <Badge variant="outline">{markedCount}/{MOCK_STUDENTS.length} marqués</Badge>
+            </div>
+
+            <Button onClick={save} className="w-full" disabled={mark.isPending || !date || !classId.trim()}>
+              {mark.isPending ? 'Enregistrement…' : 'Enregistrer'}
             </Button>
           </div>
         </CardContent>
@@ -72,57 +82,46 @@ export default function AbsencesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Élèves</CardTitle>
+          <CardTitle>Élèves (MVP)</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {MOCK_STUDENTS.map((s) => {
+          {MOCK_STUDENTS.map((s: any) => {
             const status = statusById[s.id];
             return (
               <div key={s.id} className="rounded-xl border border-slate-200 p-4">
                 <div className="flex items-center gap-3">
                   <Avatar>
-                    <AvatarFallback>{s.name.split(' ').map((w) => w[0]).join('').slice(0, 2)}</AvatarFallback>
+                    <AvatarFallback>{s.name.split(' ').map((w: any) => w[0]).join('').slice(0, 2)}</AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
                     <div className="font-medium truncate">{s.name}</div>
                     <div className="text-xs text-slate-500">{s.code}</div>
                   </div>
                   <div className="ml-auto text-xs text-slate-500">
-                    {status ? (
-                      <span className="font-medium">
-                        {status === 'present' ? 'Présent' : status === 'absent' ? 'Absent' : 'Retard'}
-                      </span>
-                    ) : (
-                      'Non marqué'
-                    )}
+                    {status ? <span className="font-medium">{status}</span> : <span>non marqué</span>}
                   </div>
                 </div>
 
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  <Button
-                    variant={status === 'present' ? 'default' : 'outline'}
-                    onClick={() => setStatus(s.id, 'present')}
-                  >
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant={status === 'present' ? 'default' : 'outline'} onClick={() => setStatus(s.id, 'present')}>
                     Présent
                   </Button>
-                  <Button
-                    variant={status === 'absent' ? 'destructive' : 'outline'}
-                    onClick={() => setStatus(s.id, 'absent')}
-                  >
+                  <Button variant={status === 'absent' ? 'destructive' : 'outline'} onClick={() => setStatus(s.id, 'absent')}>
                     Absent
                   </Button>
-                  <Button
-                    variant={status === 'late' ? 'secondary' : 'outline'}
-                    onClick={() => setStatus(s.id, 'late')}
-                  >
+                  <Button variant={status === 'late' ? 'secondary' : 'outline'} onClick={() => setStatus(s.id, 'late')}>
                     Retard
                   </Button>
                 </div>
               </div>
             );
           })}
+          <p className="text-xs text-slate-500">
+            TODO: remplacer MOCK_STUDENTS par Student Service (quand l’endpoint liste des élèves est branché au gateway).
+          </p>
         </CardContent>
       </Card>
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
@@ -51,3 +51,4 @@ export function useSocket() {
 
   return socket;
 }
+

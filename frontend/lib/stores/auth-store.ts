@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import { apiClient } from '@/lib/api/client';
+﻿import { create } from 'zustand';
+import { authClient } from '@/lib/api/client';
 import type { LoginInput, LoginResponse, User } from '@/lib/types/auth';
 
 type AuthState = {
@@ -7,7 +7,7 @@ type AuthState = {
   isLoading: boolean;
   error: string | null;
   login: (input: LoginInput) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   hydrate: () => void;
 };
 
@@ -15,13 +15,12 @@ function isBrowser() {
   return typeof window !== 'undefined';
 }
 
-
-function setCookie(name: string, value: string) {
+function setCookie(name: string, value: string, opts?: { maxAgeSeconds?: number }) {
   if (!isBrowser()) return;
-  // Non-HttpOnly cookie (MVP) used by Next middleware for route protection.
-  // Production target: HttpOnly Secure cookies set by a BFF/auth gateway.
   const safe = encodeURIComponent(value);
-  document.cookie = `${name}=${safe}; Path=/; SameSite=Lax`;
+  const maxAge = opts?.maxAgeSeconds ? `; Max-Age=${opts.maxAgeSeconds}` : '';
+  // MVP cookie is not HttpOnly (cannot be set from client). Production target: HttpOnly Secure via BFF/auth gateway.
+  document.cookie = `${name}=${safe}; Path=/; SameSite=Lax${maxAge}`;
 }
 
 function clearCookie(name: string) {
@@ -29,54 +28,65 @@ function clearCookie(name: string) {
   document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax`;
 }
 
-function setTokens(data: LoginResponse) {
-  if (!isBrowser()) return;
-  window.localStorage.setItem('access_token', data.access_token);
-  window.localStorage.setItem('refresh_token', data.refresh_token);
+function getCookie(name: string): string | null {
+  if (!isBrowser()) return null;
+  const m = document.cookie.match(new RegExp(`(?:^|; )${name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}=([^;]*)`));
+  return m?.[1] ? decodeURIComponent(m[1]) : null;
+}
 
-  // Used by middleware + Server Components (cannot read localStorage)
+function setTokens(data: LoginResponse) {
+  // Session cookies (no localStorage)
+  // Access token typically short-lived; refresh longer.
   setCookie('madrasti_at', data.access_token);
-  setCookie('madrasti_rt', data.refresh_token);
+  setCookie('madrasti_rt', data.refresh_token, { maxAgeSeconds: 60 * 60 * 24 * 14 }); // 14 days
 }
 
 function clearTokens() {
-  if (!isBrowser()) return;
-  window.localStorage.removeItem('access_token');
-  window.localStorage.removeItem('refresh_token');
   clearCookie('madrasti_at');
   clearCookie('madrasti_rt');
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   isLoading: false,
   error: null,
 
   hydrate: () => {
-    // If you later store user in localStorage or fetch /me, do it here.
-    // For now, we keep user null until first successful login.
-    void 0;
+    // If tokens exist but we don't have user payload, keep user null until we implement /me on BFF.
+    const at = getCookie('madrasti_at');
+    const rt = getCookie('madrasti_rt');
+    if (!at || !rt) {
+      set({ user: null });
+    }
   },
 
   login: async (input) => {
     set({ isLoading: true, error: null });
     try {
-      const { data } = await apiClient.post<LoginResponse>('/v1/auth/login', input);
+      const data = await authClient.post<LoginResponse>('/v1/auth/login', input);
       if (!data?.access_token || !data?.refresh_token) {
         throw new Error('Invalid login response');
       }
       setTokens(data);
       set({ user: data.user ?? { id: 'me', email: input.email }, isLoading: false });
-    } catch (e: any) {
-      const message = e?.response?.data?.message || e?.message || 'Login failed';
+    } catch (e: unknown) {
+      const err = e as any;
+      const message = err?.response?.data?.message || err?.message || 'Login failed';
       set({ error: String(message), isLoading: false, user: null });
       clearTokens();
     }
   },
 
-  logout: () => {
-    clearTokens();
-    set({ user: null, error: null, isLoading: false });
+  logout: async () => {
+    try {
+      // best-effort
+      await authClient.post('/v1/auth/logout', {});
+    } catch {
+      // ignore
+    } finally {
+      clearTokens();
+      set({ user: null, error: null, isLoading: false });
+    }
   }
 }));
 

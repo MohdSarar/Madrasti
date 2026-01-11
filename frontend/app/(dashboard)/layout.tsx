@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import * as React from 'react';
 
@@ -14,7 +14,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   React.useEffect(() => {
     // MVP client-side guard. Middleware protects on the server using the madrasti_at cookie.
-    const hasCookie = document.cookie.split(';').some((c) => c.trim().startsWith('madrasti_at='));
+    const hasCookie = document.cookie.split(';').some((c: any) => c.trim().startsWith('madrasti_at='));
     const token = window.localStorage.getItem('access_token');
     if (!hasCookie && !token) window.location.href = '/login';
   }, []);
@@ -55,3 +55,4 @@ return (
     </div>
   );
 }
+

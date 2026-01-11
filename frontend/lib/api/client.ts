@@ -1,92 +1,110 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { getEnv } from '@/lib/env';
+// lib/api/client.ts
 
-const baseURL = getEnv().NEXT_PUBLIC_API_URL;
-
-export const apiClient = axios.create({
-  baseURL,
-  timeout: 10_000
-});
-
-function isBrowser() {
-  return typeof window !== 'undefined';
+export function isBrowser(): boolean {
+  return typeof window !== 'undefined' && typeof document !== 'undefined';
 }
 
-function getAccessToken() {
+function escapeRegExp(s: string): string {
+  return s.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+}
+
+export function getCookie(name: string): string | null {
   if (!isBrowser()) return null;
-  return window.localStorage.getItem('access_token');
+
+  const pattern = `(?:^|; )${escapeRegExp(name)}=([^;]*)`;
+  const m = document.cookie.match(new RegExp(pattern));
+
+  const value = m?.[1];
+  if (typeof value !== 'string') return null;
+
+  return decodeURIComponent(value);
 }
 
-function getRefreshToken() {
-  if (!isBrowser()) return null;
-  return window.localStorage.getItem('refresh_token');
+function getAccessToken(): string | null {
+  // adapt if your cookie name differs
+  return getCookie('access_token');
 }
 
-function setAccessToken(token: string) {
-  if (!isBrowser()) return;
-  window.localStorage.setItem('access_token', token);
+function getRefreshToken(): string | null {
+  // adapt if your cookie name differs
+  return getCookie('refresh_token');
 }
 
-apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = getAccessToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+export type ApiClientOptions = {
+  baseUrl: string;
+};
+
+export class ApiClient {
+  private readonly baseUrl: string;
+
+  constructor(opts: ApiClientOptions) {
+    this.baseUrl = opts.baseUrl.replace(/\/+$/, '');
   }
-  return config;
-});
 
-let refreshingPromise: Promise<string | null> | null = null;
+  async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const url = `${this.baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
 
-async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return null;
+    const headers = new Headers(init.headers ?? {});
+    headers.set('accept', 'application/json');
 
-  try {
-    const { data } = await axios.post(
-      `${baseURL}/v1/auth/refresh`,
-      { refresh_token: refreshToken },
-      { timeout: 10_000 }
-    );
+    const access = getAccessToken();
+    if (access) headers.set('authorization', `Bearer ${access}`);
 
-    const newAccessToken = data?.access_token as string | undefined;
-    if (!newAccessToken) return null;
-    setAccessToken(newAccessToken);
-    return newAccessToken;
-  } catch {
-    return null;
+    const res = await fetch(url, {
+      ...init,
+      headers,
+      credentials: 'include',
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`HTTP ${res.status} ${res.statusText}${text ? ` — ${text}` : ''}`);
+    }
+
+    if (res.status === 204) return undefined as T;
+    return (await res.json()) as T;
+  }
+
+  get<T>(path: string): Promise<T> {
+    return this.request<T>(path, { method: 'GET' });
+  }
+
+  post<T>(path: string, body?: unknown): Promise<T> {
+    const headers = new Headers();
+    headers.set('content-type', 'application/json');
+    return this.request<T>(path, {
+      method: 'POST',
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
   }
 }
 
-apiClient.interceptors.response.use(
-  (response) => response,
-  async (error: AxiosError) => {
-    const status = error.response?.status;
-    const original = error.config;
+// ===== Base URLs =====
+// keep these aligned with your current frontend env usage
+const AUTH_BASE =
+  (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim()) ||
+  'http://localhost:8000/auth';
 
-    if (!original || status !== 401) {
-      return Promise.reject(error);
-    }
+// If you already have other env vars, swap these to those names
+const ACADEMIC_BASE = process.env.NEXT_PUBLIC_ACADEMIC_URL?.trim() || 'http://localhost:8085';
+const ATTENDANCE_BASE = process.env.NEXT_PUBLIC_ATTENDANCE_URL?.trim() || 'http://localhost:8086';
+const SCHEDULING_BASE = process.env.NEXT_PUBLIC_SCHEDULING_URL?.trim() || 'http://localhost:8087';
+const NOTIFICATION_BASE = process.env.NEXT_PUBLIC_NOTIFICATION_URL?.trim() || 'http://localhost:8089';
+const DOCUMENT_BASE = process.env.NEXT_PUBLIC_DOCUMENT_URL?.trim() || 'http://localhost:8090';
 
-    // Avoid infinite loops
-    if ((original as any)._retry) {
-      return Promise.reject(error);
-    }
-    (original as any)._retry = true;
+// ===== Named exports expected by hooks/stores =====
+export const authClient = new ApiClient({ baseUrl: AUTH_BASE });
+export const academicClient = new ApiClient({ baseUrl: ACADEMIC_BASE });
+export const attendanceClient = new ApiClient({ baseUrl: ATTENDANCE_BASE });
+export const schedulingClient = new ApiClient({ baseUrl: SCHEDULING_BASE });
+export const notificationClient = new ApiClient({ baseUrl: NOTIFICATION_BASE });
+export const documentClient = new ApiClient({ baseUrl: DOCUMENT_BASE });
 
-    if (!refreshingPromise) {
-      refreshingPromise = refreshAccessToken().finally(() => {
-        refreshingPromise = null;
-      });
-    }
+// Back-compat (if some files import apiClient)
+export const apiClient = authClient;
 
-    const newToken = await refreshingPromise;
-    if (!newToken) {
-      return Promise.reject(error);
-    }
-
-    original.headers = original.headers ?? {};
-    (original.headers as any).Authorization = `Bearer ${newToken}`;
-    return apiClient(original);
-  }
-);
-
+export const tokens = {
+  getAccessToken,
+  getRefreshToken,
+};
