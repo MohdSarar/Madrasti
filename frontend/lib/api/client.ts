@@ -1,6 +1,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { getEnv } from '@/lib/env';
 
-const baseURL = process.env.NEXT_PUBLIC_API_URL;
+const baseURL = getEnv().NEXT_PUBLIC_API_URL;
 
 export const apiClient = axios.create({
   baseURL,
@@ -42,7 +43,7 @@ async function refreshAccessToken(): Promise<string | null> {
 
   try {
     const { data } = await axios.post(
-      `${baseURL ?? ''}/v1/auth/refresh`,
+      `${baseURL}/v1/auth/refresh`,
       { refresh_token: refreshToken },
       { timeout: 10_000 }
     );

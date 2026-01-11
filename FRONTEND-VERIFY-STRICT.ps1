@@ -37,6 +37,6 @@ Run "docker build -t madrasti-frontend:dev -f ./frontend/Dockerfile ./frontend"
 OK "docker build OK"
 
 Step "6) Health route (optional local)"
-Write-Host "You can now run: docker run --rm -p 3000:3000 madrasti-frontend:dev" -ForegroundColor Yellow
-Write-Host "Then check: http://localhost:3000/api/health" -ForegroundColor Yellow
+Write-Host "You can now run: docker run --rm -p 3000:3000 madrasti-frontend:dev" -ForegroundColor Yelloww
+Write-Host "Then check: http://localhost:3000/api/health" -ForegroundColor Yelloww
 OK "DONE"

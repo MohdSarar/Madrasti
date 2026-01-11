@@ -28,7 +28,7 @@ function badgeVariant(letter: string) {
   return 'danger';
 }
 
-export function NotesTable({ data, isLoading }: { data: Grade[]; isLoading: boolean }) {
+export function NotesTable({ data, isLoading = false }: { data: Grade[]; isLoading?: boolean }) {
   const [sortKey, setSortKey] = React.useState<SortKey>('date');
   const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('desc');
 

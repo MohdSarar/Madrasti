@@ -29,3 +29,8 @@ npm run test:e2e
 docker build -t madrasti-frontend ./frontend
 docker run --rm -p 3000:3000 --env-file ./frontend/.env.local madrasti-frontend
 ```
+
+## Security
+
+See `docs/SECURITY.md` for current MVP limitations (token storage) and production recommendations.
+

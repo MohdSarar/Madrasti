@@ -13,12 +13,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useSocket();
 
   React.useEffect(() => {
-    // Basic client-side guard (localStorage-based). Replace with HttpOnly cookie auth in BFF for production.
+    // MVP client-side guard. Middleware protects on the server using the madrasti_at cookie.
+    const hasCookie = document.cookie.split(';').some((c) => c.trim().startsWith('madrasti_at='));
     const token = window.localStorage.getItem('access_token');
-    if (!token) window.location.href = '/login';
+    if (!hasCookie && !token) window.location.href = '/login';
   }, []);
-
-  return (
+return (
     <div className="min-h-screen">
       <a
         href="#main"

@@ -1,12 +1,7 @@
-'use client';
-
-import { useEffect } from 'react';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 
 export default function HomePage() {
-  useEffect(() => {
-    const token = window.localStorage.getItem('access_token');
-    window.location.href = token ? '/notes' : '/login';
-  }, []);
-
-  return null;
+  const token = cookies().get('madrasti_at')?.value;
+  redirect(token ? '/notes' : '/login');
 }

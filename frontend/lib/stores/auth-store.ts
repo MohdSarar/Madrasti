@@ -15,16 +15,36 @@ function isBrowser() {
   return typeof window !== 'undefined';
 }
 
+
+function setCookie(name: string, value: string) {
+  if (!isBrowser()) return;
+  // Non-HttpOnly cookie (MVP) used by Next middleware for route protection.
+  // Production target: HttpOnly Secure cookies set by a BFF/auth gateway.
+  const safe = encodeURIComponent(value);
+  document.cookie = `${name}=${safe}; Path=/; SameSite=Lax`;
+}
+
+function clearCookie(name: string) {
+  if (!isBrowser()) return;
+  document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
+
 function setTokens(data: LoginResponse) {
   if (!isBrowser()) return;
   window.localStorage.setItem('access_token', data.access_token);
   window.localStorage.setItem('refresh_token', data.refresh_token);
+
+  // Used by middleware + Server Components (cannot read localStorage)
+  setCookie('madrasti_at', data.access_token);
+  setCookie('madrasti_rt', data.refresh_token);
 }
 
 function clearTokens() {
   if (!isBrowser()) return;
   window.localStorage.removeItem('access_token');
   window.localStorage.removeItem('refresh_token');
+  clearCookie('madrasti_at');
+  clearCookie('madrasti_rt');
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
