@@ -15,14 +15,14 @@ import type { StudentAttendanceStatus } from '@/lib/types/attendance';
 type Student = { id: string; name: string; code: string };
 
 const MOCK_STUDENTS: Student[] = [
-  { id: 'test', name: 'Student Test', code: 'STD-0001' },
-  { id: 'test2', name: 'Student Two', code: 'STD-0002' },
-  { id: 'test3', name: 'Student Three', code: 'STD-0003' }
+  { id: '11111111-1111-1111-1111-111111111111', name: 'Student Test', code: 'STD-0001' },
+  { id: '22222222-2222-2222-2222-222222222222', name: 'Student Two', code: 'STD-0002' },
+  { id: '33333333-3333-3333-3333-333333333333', name: 'Student Three', code: 'STD-0003' }
 ];
 
 export default function AbsencesPage() {
   const [date, setDate] = React.useState<Date | undefined>(new Date());
-  const [classId, setClassId] = React.useState('test');
+  const [classId, setClassId] = React.useState('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
   const [statusById, setStatusById] = React.useState<Record<string, StudentAttendanceStatus>>({});
 
   const mark = useMarkClassAttendance();
@@ -124,4 +124,5 @@ export default function AbsencesPage() {
     </div>
   );
 }
+
 

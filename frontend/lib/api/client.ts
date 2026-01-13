@@ -21,12 +21,10 @@ export function getCookie(name: string): string | null {
 }
 
 function getAccessToken(): string | null {
-  // adapt if your cookie name differs
   return getCookie('access_token');
 }
 
 function getRefreshToken(): string | null {
-  // adapt if your cookie name differs
   return getCookie('refresh_token');
 }
 
@@ -45,7 +43,11 @@ export class ApiClient {
     const url = `${this.baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
 
     const headers = new Headers(init.headers ?? {});
-    headers.set('accept', 'application/json');
+    
+    // Ne pas ajouter accept: application/json si c'est du FormData
+    if (!(init.body instanceof FormData)) {
+      headers.set('accept', 'application/json');
+    }
 
     const access = getAccessToken();
     if (access) headers.set('authorization', `Bearer ${access}`);
@@ -71,22 +73,41 @@ export class ApiClient {
 
   post<T>(path: string, body?: unknown): Promise<T> {
     const headers = new Headers();
-    headers.set('content-type', 'application/json');
+    
+    // FIX CRITIQUE 2: Support FormData proper
+    let finalBody: any;
+    
+    if (body instanceof FormData) {
+      // Ne PAS définir Content-Type pour FormData (le browser le fait automatiquement avec boundary)
+      finalBody = body;
+    } else {
+      // JSON normal
+      headers.set('content-type', 'application/json');
+      finalBody = body === undefined ? undefined : JSON.stringify(body);
+    }
+
     return this.request<T>(path, {
       method: 'POST',
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: finalBody,
+    });
+  }
+
+  // Méthode dédiée pour les uploads multipart
+  upload<T>(path: string, formData: FormData): Promise<T> {
+    return this.request<T>(path, {
+      method: 'POST',
+      body: formData,
+      // Ne pas définir Content-Type ici - le browser le fait avec boundary
     });
   }
 }
 
 // ===== Base URLs =====
-// keep these aligned with your current frontend env usage
 const AUTH_BASE =
   (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim()) ||
   'http://localhost:8000/auth';
 
-// If you already have other env vars, swap these to those names
 const ACADEMIC_BASE = process.env.NEXT_PUBLIC_ACADEMIC_URL?.trim() || 'http://localhost:8085';
 const ATTENDANCE_BASE = process.env.NEXT_PUBLIC_ATTENDANCE_URL?.trim() || 'http://localhost:8086';
 const SCHEDULING_BASE = process.env.NEXT_PUBLIC_SCHEDULING_URL?.trim() || 'http://localhost:8087';
@@ -101,7 +122,6 @@ export const schedulingClient = new ApiClient({ baseUrl: SCHEDULING_BASE });
 export const notificationClient = new ApiClient({ baseUrl: NOTIFICATION_BASE });
 export const documentClient = new ApiClient({ baseUrl: DOCUMENT_BASE });
 
-// Back-compat (if some files import apiClient)
 export const apiClient = authClient;
 
 export const tokens = {

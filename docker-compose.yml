@@ -1,4 +1,4 @@
-services:
+﻿services:
   postgres:
     image: postgres:16
     environment:
@@ -83,8 +83,10 @@ services:
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
       TEST_BYPASS_AUTH: "0"
       PORT: 8082
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/madrasti_attendance
+
       REDIS_URL: redis://redis:6379
+
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
     depends_on:
@@ -122,8 +124,10 @@ services:
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
       TEST_BYPASS_AUTH: "0"
       PORT: 8083
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/madrasti_attendance
+
       REDIS_URL: redis://redis:6379
+
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
       EVENT_STREAM: school-events
@@ -163,8 +167,10 @@ services:
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
       TEST_BYPASS_AUTH: "0"
       PORT: 8084
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/madrasti_attendance
+
       REDIS_URL: redis://redis:6379
+
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
     depends_on:
@@ -218,7 +224,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: ${SECURITY_PORT:-8091}
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/madrasti_attendance
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
       SERVICE_NAME: security
       APP_VERSION: dev
@@ -245,8 +251,10 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8085
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/madrasti_attendance
+
       REDIS_URL: redis://redis:6379
+
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${AUTH_SERVICE_TOKEN:-change-me-in-prod}
       SERVICE_NAME: academic
@@ -277,8 +285,10 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8086
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/madrasti_attendance
+
       REDIS_URL: redis://redis:6379
+
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${AUTH_SERVICE_TOKEN:-change-me-in-prod}
       SERVICE_NAME: attendance
@@ -303,8 +313,10 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8087
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/madrasti_attendance
+
       REDIS_URL: redis://redis:6379
+
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${AUTH_SERVICE_TOKEN:-change-me-in-prod}
       SERVICE_NAME: scheduling
@@ -329,8 +341,10 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8088
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/madrasti_attendance
+
       REDIS_URL: redis://redis:6379
+
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${AUTH_SERVICE_TOKEN:-change-me-in-prod}
       SERVICE_NAME: reporting
@@ -355,8 +369,10 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8089
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/madrasti_attendance
+
       REDIS_URL: redis://redis:6379
+
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${AUTH_SERVICE_TOKEN:-change-me-in-prod}
       SERVICE_NAME: notification
@@ -381,8 +397,10 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8090
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-postgres}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/madrasti_attendance
+
       REDIS_URL: redis://redis:6379
+
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${AUTH_SERVICE_TOKEN:-change-me-in-prod}
       SERVICE_NAME: document
@@ -444,4 +462,8 @@ services:
 volumes:
   pgdata: null
   redisdata: null
+
+
+
+
 

@@ -1,66 +1,66 @@
 ﻿import { create } from 'zustand';
 import { authClient } from '@/lib/api/client';
-import type { LoginInput, LoginResponse, User } from '@/lib/types/auth';
+
+type LoginInput = { email: string; password: string };
+
+type LoginResponse = {
+  access_token: string;
+  refresh_token: string;
+  user?: {
+    id: string;
+    email: string;
+    role: string;
+    full_name?: string;
+  };
+};
 
 type AuthState = {
-  user: User | null;
+  user: LoginResponse['user'] | null;
   isLoading: boolean;
   error: string | null;
   login: (input: LoginInput) => Promise<void>;
   logout: () => Promise<void>;
+  checkAuth: () => Promise<void>;
   hydrate: () => void;
+  refreshToken: () => Promise<boolean>;
 };
 
-function isBrowser() {
+function isBrowser(): boolean {
   return typeof window !== 'undefined';
-}
-
-function setCookie(name: string, value: string, opts?: { maxAgeSeconds?: number }) {
-  if (!isBrowser()) return;
-  const safe = encodeURIComponent(value);
-  const maxAge = opts?.maxAgeSeconds ? `; Max-Age=${opts.maxAgeSeconds}` : '';
-  // MVP cookie is not HttpOnly (cannot be set from client). Production target: HttpOnly Secure via BFF/auth gateway.
-  document.cookie = `${name}=${safe}; Path=/; SameSite=Lax${maxAge}`;
-}
-
-function clearCookie(name: string) {
-  if (!isBrowser()) return;
-  document.cookie = `${name}=; Path=/; Max-Age=0; SameSite=Lax`;
 }
 
 function getCookie(name: string): string | null {
   if (!isBrowser()) return null;
-  const m = document.cookie.match(new RegExp(`(?:^|; )${name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}=([^;]*)`));
+  const pattern = `(?:^|; )${name.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}=([^;]*)`;
+  const m = document.cookie.match(new RegExp(pattern));
   return m?.[1] ? decodeURIComponent(m[1]) : null;
 }
 
 function setTokens(data: LoginResponse) {
-  // Session cookies (no localStorage)
-  // Access token typically short-lived; refresh longer.
-  setCookie('madrasti_at', data.access_token);
-  setCookie('madrasti_rt', data.refresh_token, { maxAgeSeconds: 60 * 60 * 24 * 14 }); // 14 days
+  if (!isBrowser()) return;
+  
+  const expires = new Date();
+  expires.setDate(expires.getDate() + 7);
+  const exp = expires.toUTCString();
+
+  document.cookie = `access_token=${data.access_token}; path=/; expires=${exp}; SameSite=Lax`;
+  document.cookie = `refresh_token=${data.refresh_token}; path=/; expires=${exp}; SameSite=Lax`;
 }
 
 function clearTokens() {
-  clearCookie('madrasti_at');
-  clearCookie('madrasti_rt');
+  if (!isBrowser()) return;
+  document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
+  document.cookie = 'refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+let refreshPromise: Promise<boolean> | null = null;
+
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isLoading: false,
   error: null,
 
-  hydrate: () => {
-    // If tokens exist but we don't have user payload, keep user null until we implement /me on BFF.
-    const at = getCookie('madrasti_at');
-    const rt = getCookie('madrasti_rt');
-    if (!at || !rt) {
-      set({ user: null });
-    }
-  },
-
-  login: async (input) => {
+  login: async (input: LoginInput) => {
     set({ isLoading: true, error: null });
     try {
       const data = await authClient.post<LoginResponse>('/v1/auth/login', input);
@@ -68,25 +68,108 @@ export const useAuthStore = create<AuthState>((set) => ({
         throw new Error('Invalid login response');
       }
       setTokens(data);
-      set({ user: data.user ?? { id: 'me', email: input.email }, isLoading: false });
-    } catch (e: unknown) {
-      const err = e as any;
-      const message = err?.response?.data?.message || err?.message || 'Login failed';
-      set({ error: String(message), isLoading: false, user: null });
-      clearTokens();
+      set({ user: data.user ?? null, isLoading: false });
+    } catch (err: any) {
+      const msg = err?.message || 'Login failed';
+      set({ error: msg, isLoading: false });
+      throw err;
     }
   },
 
   logout: async () => {
     try {
-      // best-effort
       await authClient.post('/v1/auth/logout', {});
     } catch {
-      // ignore
+      // ignore logout errors
     } finally {
       clearTokens();
-      set({ user: null, error: null, isLoading: false });
+      set({ user: null, error: null });
+    }
+  },
+
+  checkAuth: async () => {
+    const accessToken = getCookie('access_token');
+    if (!accessToken) {
+      set({ user: null });
+      return;
+    }
+
+    try {
+      const data = await authClient.get<{ user: LoginResponse['user'] }>('/v1/auth/me');
+      set({ user: data.user ?? null });
+    } catch (error: any) {
+      if (error?.message?.includes('401') || error?.message?.includes('403')) {
+        const refreshed = await get().refreshToken();
+        if (refreshed) {
+          try {
+            const data = await authClient.get<{ user: LoginResponse['user'] }>('/v1/auth/me');
+            set({ user: data.user ?? null });
+            return;
+          } catch {
+            // Si ça échoue toujours, déconnecter
+          }
+        }
+      }
+      clearTokens();
+      set({ user: null });
+    }
+  },
+
+  refreshToken: async () => {
+    if (refreshPromise) {
+      return refreshPromise;
+    }
+
+    refreshPromise = (async () => {
+      try {
+        const refreshToken = getCookie('refresh_token');
+        if (!refreshToken) {
+          return false;
+        }
+
+        const data = await authClient.post<LoginResponse>('/v1/auth/refresh', {
+          refresh_token: refreshToken
+        });
+
+        if (!data?.access_token || !data?.refresh_token) {
+          throw new Error('Invalid refresh response');
+        }
+
+        setTokens(data);
+        set({ user: data.user ?? null });
+        return true;
+      } catch (error) {
+        console.error('[AuthStore] Refresh token failed:', error);
+        clearTokens();
+        set({ user: null });
+        return false;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+
+    return refreshPromise;
+  },
+
+  hydrate: () => {
+    const accessToken = getCookie('access_token');
+    if (accessToken) {
+      get().checkAuth().catch(() => {
+        clearTokens();
+        set({ user: null });
+      });
+    } else {
+      set({ user: null });
     }
   }
 }));
 
+if (isBrowser()) {
+  setInterval(async () => {
+    const accessToken = getCookie('access_token');
+    if (accessToken) {
+      const store = useAuthStore.getState();
+      await store.refreshToken();
+    }
+  }, 10 * 60 * 1000);
+}

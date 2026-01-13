@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -30,20 +30,52 @@ export function useAttendanceSummary(studentId?: string, periodId?: string) {
   });
 }
 
+// FIX: Correction du bug "Enregistrer l'appel"
 export function useMarkClassAttendance() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { date: string; class_id: string; marks: AttendanceMark[] }) => {
-      const data = await attendanceClient.post(`/api/v1/attendance/mark-class`, input);
-      return data;
+      // Validation des données avant envoi
+      if (!input.date || !input.class_id || !Array.isArray(input.marks)) {
+        throw new Error('Données invalides: date, class_id et marks sont requis');
+      }
+
+      // Format ISO pour la date
+      const formattedDate = new Date(input.date).toISOString().split('T')[0];
+      
+      const payload = {
+        school_id: "00000000-0000-0000-0000-000000000001", // TODO: get from auth context
+        class_id: input.class_id,
+        academic_period_id: "00000000-0000-0000-0000-000000000002", // TODO: get from context
+        attendance_date: formattedDate,
+        marked_by: "00000000-0000-0000-0000-000000000003", // TODO: get from auth user
+        records: input.marks.map((mark: any) => ({
+          student_id: mark.student_id,
+          status: mark.status === 'late' ? 'tardy' : mark.status,
+          remarks: mark.notes || undefined
+        }))
+      };
+
+      try {
+        const data = await attendanceClient.post(`/api/v1/attendance/mark-class`, payload);
+        return data;
+      } catch (error: any) {
+        // Gestion détaillée des erreurs backend
+        const errorMsg = error?.message || 'Erreur réseau';
+        console.error('[useMarkClassAttendance] Error:', error);
+        throw new Error(errorMsg);
+      }
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['attendance'] });
-      toast.success('Appel enregistré');
+      toast.success('Appel enregistré avec succès');
     },
     onError: (e: unknown) => {
-      const msg = (e as any)?.response?.data?.message || 'Erreur lors de l’enregistrement';
-      toast.error(String(msg));
+      const msg = (e as any)?.message || "Erreur lors de l'enregistrement de l'appel";
+      console.error('[useMarkClassAttendance] onError:', e);
+      toast.error(msg);
     }
   });
 }
+
+
