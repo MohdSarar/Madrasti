@@ -51,8 +51,6 @@ services:
       context: .
       dockerfile: services/auth/Dockerfile
     restart: unless-stopped
-    env_file:
-      - ./.env.production
     environment:
       HOST: 0.0.0.0
       PORT: 8081
@@ -86,8 +84,6 @@ services:
       context: .
       dockerfile: services/security/Dockerfile
     restart: unless-stopped
-    env_file:
-      - ./.env.production
     environment:
       HOST: 0.0.0.0
       PORT: 8091
@@ -120,8 +116,6 @@ services:
       context: .
       dockerfile: services/student/Dockerfile
     restart: unless-stopped
-    env_file:
-      - ./.env.production
     environment:
       HOST: 0.0.0.0
       PORT: 8082
@@ -155,8 +149,6 @@ services:
       context: .
       dockerfile: services/school/Dockerfile
     restart: unless-stopped
-    env_file:
-      - ./.env.production
     environment:
       HOST: 0.0.0.0
       PORT: 8083
@@ -191,8 +183,6 @@ services:
       context: .
       dockerfile: services/user-profile/Dockerfile
     restart: unless-stopped
-    env_file:
-      - ./.env.production
     environment:
       HOST: 0.0.0.0
       PORT: 8084
@@ -226,8 +216,6 @@ services:
       context: .
       dockerfile: services/academic/Dockerfile
     restart: unless-stopped
-    env_file:
-      - ./.env.production
     environment:
       HOST: 0.0.0.0
       PORT: 8085
@@ -262,8 +250,6 @@ services:
       context: .
       dockerfile: services/attendance/Dockerfile
     restart: unless-stopped
-    env_file:
-      - ./.env.production
     environment:
       HOST: 0.0.0.0
       PORT: 8086
@@ -298,8 +284,6 @@ services:
       context: .
       dockerfile: services/scheduling/Dockerfile
     restart: unless-stopped
-    env_file:
-      - ./.env.production
     environment:
       HOST: 0.0.0.0
       PORT: 8087
@@ -334,8 +318,6 @@ services:
       context: .
       dockerfile: services/reporting/Dockerfile
     restart: unless-stopped
-    env_file:
-      - ./.env.production
     environment:
       HOST: 0.0.0.0
       PORT: 8088
@@ -370,8 +352,6 @@ services:
       context: .
       dockerfile: services/notification/Dockerfile
     restart: unless-stopped
-    env_file:
-      - ./.env.production
     environment:
       HOST: 0.0.0.0
       PORT: 8089
@@ -406,8 +386,6 @@ services:
       context: .
       dockerfile: services/document/Dockerfile
     restart: unless-stopped
-    env_file:
-      - ./.env.production
     environment:
       HOST: 0.0.0.0
       PORT: 8090
