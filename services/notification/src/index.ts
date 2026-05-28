@@ -11,7 +11,7 @@ async function start() {
   await redis.connect();
   await ensureEventBusConnected();
 
-  setupEventListeners();
+  await setupEventListeners();
   logger.info("notification_listeners_configured");
 
   app.listen(config.PORT, config.HOST, () => {

@@ -3,7 +3,10 @@ import { logger } from "./logger.js";
 import { eventBus } from "./eventBus.js";
 import { NotificationService } from "./services/NotificationService.js";
 
-export function setupEventListeners(): void {
+export async function setupEventListeners(): Promise<void> {
+  await eventBus.createConsumerGroup("academic-events", "notification-service");
+  await eventBus.createConsumerGroup("attendance-events", "notification-service");
+
   // Academic events
   eventBus.consume({
     stream: "academic-events",
