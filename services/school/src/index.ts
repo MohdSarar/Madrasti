@@ -3,40 +3,9 @@ import { logger } from "./logger.js";
 import { config } from "./config.js";
 import { EventBus } from "@madrasti/event-bus";
 
-// Si ton EventBus se construit différemment, adapte uniquement cette partie.
-function createEventBus(): EventBus {
-  // ⚠️ Ajuste si ton package expose une factory (ex: createEventBus()).
-  return new EventBus({
-    redisUrl: config.redisUrl,
-    stream: config.eventStream,
-    serviceName: "school-service",
-  } as any);
-}
-
-async function safeCloseEventBus(bus: EventBus): Promise<void> {
-  const anyBus = bus as any;
-
-  // Essaye plusieurs noms possibles sans casser TypeScript
-  if (typeof anyBus.stop === "function") {
-    await anyBus.stop();
-    return;
-  }
-  if (typeof anyBus.shutdown === "function") {
-    await anyBus.shutdown();
-    return;
-  }
-  if (typeof anyBus.disconnect === "function") {
-    await anyBus.disconnect();
-    return;
-  }
-  if (typeof anyBus.close === "function") {
-    await anyBus.close();
-    return;
-  }
-}
-
 async function main() {
-  const eventBus = createEventBus();
+  const eventBus = new EventBus(config.redisUrl);
+  await eventBus.connect();
   const app = buildApp(eventBus);
 
   const server = app.listen(config.port, config.host, () => {
@@ -50,9 +19,9 @@ async function main() {
     logger.info({ signal }, "shutdown requested");
     server.close(async () => {
       try {
-        await safeCloseEventBus(eventBus);
+        await eventBus.disconnect();
       } catch (err) {
-        logger.error({ err }, "failed to close event bus");
+        logger.error({ err }, "failed to disconnect event bus");
       } finally {
         process.exit(0);
       }

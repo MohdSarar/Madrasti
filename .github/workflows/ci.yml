@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "develop"]
   pull_request:
 
 jobs:
@@ -19,36 +19,56 @@ jobs:
           node-version: 20
           cache: "npm"
 
-      - name: Install deps
+      - name: Install dependencies
         run: npm ci
 
-      - name: Prepare env
-        run: |
-          cp .env.example .env
+      - name: Prepare environment
+        run: cp .env.example .env
 
       - name: Start dependencies (Postgres + Redis)
         run: |
           docker compose up -d postgres redis
           docker compose ps
 
-      - name: Run workspace tests
+      - name: Wait for Postgres and Redis to be healthy
+        run: |
+          echo "Waiting for postgres..."
+          until docker compose exec -T postgres pg_isready -U madrasti -d madrasti; do sleep 2; done
+          echo "Waiting for redis..."
+          until docker compose exec -T redis redis-cli ping | grep -q PONG; do sleep 2; done
+
+      - name: Run shared package tests
         env:
-          # Auth service tests require real auth behavior, others can bypass auth.
+          DATABASE_URL: "postgres://madrasti:madrasti@localhost:5432/madrasti"
+          REDIS_URL: "redis://localhost:6379"
+        run: |
+          npm -w @madrasti/auth-sdk test
+          npm -w @madrasti/event-bus test
+
+      - name: Run service tests
+        env:
           TEST_BYPASS_AUTH: "1"
-          # Default local mappings from docker-compose (override if you changed POSTGRES_PORT)
-          DATABASE_URL: "postgres://postgres:postgres@localhost:5432/auth_db"
+          DATABASE_URL: "postgres://madrasti:madrasti@localhost:5432/madrasti"
           REDIS_URL: "redis://localhost:6379"
           AUTH_SERVICE_URL: "http://localhost:8081"
           AUTH_SERVICE_TOKEN: "dev-internal-token"
+          INTERNAL_SERVICE_TOKEN: "dev-internal-token"
+          JWT_ACCESS_SECRET: "dev_access_secret_change_me_in_production"
+          JWT_REFRESH_SECRET: "dev_refresh_secret_change_me_in_production"
+          SECURITY_SERVICE_TOKEN: "change-me-in-prod"
+          SECURITY_SERVICE_URL: "http://localhost:8091"
         run: |
-          # Auth tests manage their own envs; keep them explicit.
           npm -w @madrasti/auth-service test
-          # Step 3: packages + new services
-          npm -w @madrasti/auth-sdk test
-          npm -w @madrasti/event-bus test
           npm -w @madrasti/student-service test
           npm -w @madrasti/school-service test
           npm -w @madrasti/user-profile-service test
+          npm -w @madrasti/academic-service test
+          npm -w @madrasti/attendance-service test
+          npm -w @madrasti/scheduling-service test
+          npm -w @madrasti/reporting-service test
+          npm -w @madrasti/notification-service test
+          npm -w @madrasti/document-service test
+          npm -w @madrasti/security-service test
 
       - name: Shutdown
         if: always()
