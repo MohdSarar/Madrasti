@@ -196,7 +196,7 @@ NEXT_PUBLIC_PROFILE_URL=http://localhost:8000/profile
     $maxWait = 60
     $waited = 0
     while ($waited -lt $maxWait) {
-        $pgReady = docker compose exec -T postgres pg_isready -U madrasti -d madrasti 2>&1
+        $pgReady = docker compose exec -T postgres pg_isready -U madrasti -d madrasti 2>&1 | Where-Object { $_ -notmatch "^time=" }
         if ($pgReady -match "accepting connections") { break }
         Start-Sleep -Seconds 3
         $waited += 3
