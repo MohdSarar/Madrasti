@@ -33,7 +33,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$ProjectRoot = $PSScriptRoot ? (Split-Path $PSScriptRoot -Parent) : (Get-Location).Path
+if ($PSScriptRoot) { $ProjectRoot = Split-Path $PSScriptRoot -Parent } else { $ProjectRoot = (Get-Location).Path }
 Set-Location $ProjectRoot
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -107,7 +107,7 @@ function Invoke-Setup {
 
     if (-not (Test-Path "frontend\.env.local")) {
         $content = @"
-NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost:8000/auth
 NEXT_PUBLIC_SOCKET_URL=http://localhost:8089
 NEXT_PUBLIC_ATTENDANCE_URL=http://localhost:8000/attendance
 NEXT_PUBLIC_ACADEMIC_URL=http://localhost:8000/academic
@@ -159,21 +159,89 @@ NEXT_PUBLIC_PROFILE_URL=http://localhost:8000/profile
 function Invoke-Start {
     Write-Header "STARTING MADRASTI"
 
-    Write-Step "Starting backend services"
-    docker compose up -d
+    # Ensure frontend/.env.local exists
+    if (-not (Test-Path "frontend\.env.local")) {
+        Write-Step "Creating frontend/.env.local"
+        $content = @"
+NEXT_PUBLIC_API_URL=http://localhost:8000/auth
+NEXT_PUBLIC_SOCKET_URL=http://localhost:8089
+NEXT_PUBLIC_ATTENDANCE_URL=http://localhost:8000/attendance
+NEXT_PUBLIC_ACADEMIC_URL=http://localhost:8000/academic
+NEXT_PUBLIC_SCHEDULING_URL=http://localhost:8000/scheduling
+NEXT_PUBLIC_NOTIFICATION_URL=http://localhost:8000/notification
+NEXT_PUBLIC_DOCUMENT_URL=http://localhost:8000/document
+NEXT_PUBLIC_SCHOOL_URL=http://localhost:8000/school
+NEXT_PUBLIC_PROFILE_URL=http://localhost:8000/profile
+"@
+        Set-Content "frontend\.env.local" -Value $content -Encoding UTF8
+        Write-OK "frontend/.env.local created"
+    }
 
-    Write-Step "Starting frontend (new window)"
-    if (Test-Path "frontend") {
-        Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location '$ProjectRoot\frontend'; npm run dev"
-        Write-OK "Frontend started in new window"
+    # Install frontend deps if needed
+    if (-not (Test-Path "frontend\node_modules")) {
+        Write-Step "Installing frontend dependencies (first run)..."
+        Push-Location "frontend"
+        npm install --silent
+        Pop-Location
+        Write-OK "Frontend dependencies installed"
+    }
+
+    # Start backend
+    Write-Step "Starting backend services (Docker)"
+    docker compose up -d
+    Write-OK "Backend services started"
+
+    # Wait for postgres + redis to be healthy
+    Write-Step "Waiting for database to be ready..."
+    $maxWait = 60
+    $waited = 0
+    while ($waited -lt $maxWait) {
+        $pgReady = docker compose exec -T postgres pg_isready -U madrasti -d madrasti 2>&1
+        if ($pgReady -match "accepting connections") { break }
+        Start-Sleep -Seconds 3
+        $waited += 3
+    }
+    Write-OK "Database ready"
+
+    # Start frontend in a new terminal window
+    Write-Step "Starting frontend dev server"
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", `
+        "Write-Host 'Madrasti Frontend' -ForegroundColor Cyan; " + `
+        "Set-Location '$ProjectRoot\frontend'; " + `
+        "npm run dev"
+    Write-OK "Frontend starting in new window..."
+
+    # Wait for frontend to respond, then open browser
+    Write-Step "Waiting for frontend to be ready..."
+    $maxWait = 60
+    $waited = 0
+    $ready = $false
+    while ($waited -lt $maxWait) {
+        Start-Sleep -Seconds 3
+        $waited += 3
+        if (Test-HttpEndpoint "http://localhost:3000" 2) {
+            $ready = $true
+            break
+        }
+    }
+
+    if ($ready) {
+        Write-OK "Frontend is up — opening browser"
+        Start-Process "http://localhost:3000"
     } else {
-        Write-Warn "frontend/ directory not found"
+        Write-Warn "Frontend not ready yet — open manually: http://localhost:3000"
     }
 
     Write-Host ""
-    Write-OK "Platform started"
+    Write-Host ("=" * 60) -ForegroundColor Green
+    Write-Host "  MADRASTI IS RUNNING" -ForegroundColor Green
+    Write-Host ("=" * 60) -ForegroundColor Green
     Write-Host "  Frontend:    http://localhost:3000" -ForegroundColor Cyan
     Write-Host "  API Gateway: http://localhost:8000" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  Stop:   .\scripts\madrasti.ps1 stop" -ForegroundColor DarkGray
+    Write-Host "  Health: .\scripts\madrasti.ps1 health" -ForegroundColor DarkGray
+    Write-Host ""
 }
 
 function Invoke-Stop {

@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-madrasti}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-madrasti}
@@ -9,18 +10,6 @@ services:
       - ${POSTGRES_PORT:-5432}:5432
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
-      - ./services/auth/migrations:/migrations/auth:ro
-      - ./services/student/migrations:/migrations/student:ro
-      - ./services/school/migrations:/migrations/school:ro
-      - ./services/user-profile/migrations:/migrations/user-profile:ro
-      - ./services/security/migrations:/migrations/security:ro
-      - ./services/academic/migrations:/migrations/academic:ro
-      - ./services/attendance/migrations:/migrations/attendance:ro
-      - ./services/scheduling/migrations:/migrations/scheduling:ro
-      - ./services/reporting/migrations:/migrations/reporting:ro
-      - ./services/notification/migrations:/migrations/notification:ro
-      - ./services/document/migrations:/migrations/document:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-madrasti} -d ${POSTGRES_DB:-madrasti}"]
       interval: 5s
@@ -29,6 +18,7 @@ services:
 
   redis:
     image: redis:7
+    restart: unless-stopped
     ports:
       - ${REDIS_PORT:-6379}:6379
     command: ["redis-server", "--appendonly", "yes"]
@@ -40,10 +30,39 @@ services:
       timeout: 3s
       retries: 20
 
+  # ── Migrations ───────────────────────────────────────────────────────────────
+  # Runs all service SQL files in order at every `docker compose up`.
+  # All files use IF NOT EXISTS so re-running is idempotent.
+  db-migrator:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-madrasti}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-madrasti}
+      POSTGRES_DB: ${POSTGRES_DB:-madrasti}
+    volumes:
+      - ./infra/db-migrate/migrate.sh:/migrate.sh:ro
+      - ./services/auth/migrations:/migrations/auth:ro
+      - ./services/student/migrations:/migrations/student:ro
+      - ./services/school/migrations:/migrations/school:ro
+      - ./services/user-profile/migrations:/migrations/user-profile:ro
+      - ./services/security/migrations:/migrations/security:ro
+      - ./services/academic/migrations:/migrations/academic:ro
+      - ./services/attendance/migrations:/migrations/attendance:ro
+      - ./services/scheduling/migrations:/migrations/scheduling:ro
+      - ./services/reporting/migrations:/migrations/reporting:ro
+      - ./services/notification/migrations:/migrations/notification:ro
+      - ./services/document/migrations:/migrations/document:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["bash", "/migrate.sh"]
+
+  # ── Core services (auth & security) ─────────────────────────────────────────
   auth:
     build:
       context: .
       dockerfile: services/auth/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:
@@ -56,21 +75,15 @@ services:
       SECURITY_SERVICE_URL: http://security:${SECURITY_PORT:-8091}
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-migrator:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     ports:
       - ${AUTH_PORT:-8081}:8081
     command: ["npm", "run", "dev"]
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://localhost:8081/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-        ]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8081/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -80,6 +93,7 @@ services:
     build:
       context: .
       dockerfile: services/security/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:
@@ -91,30 +105,26 @@ services:
       SERVICE_NAME: security
       APP_VERSION: ${APP_VERSION:-dev}
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-migrator:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     ports:
       - "${SECURITY_PORT:-8091}:${SECURITY_PORT:-8091}"
     command: ["npm", "run", "dev"]
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://localhost:8091/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-        ]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8091/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 15s
 
+  # ── Domain services ──────────────────────────────────────────────────────────
   student:
     build:
       context: .
       dockerfile: services/student/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:
@@ -132,21 +142,11 @@ services:
         condition: service_healthy
       security:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     ports:
       - ${STUDENT_PORT:-8082}:8082
     command: ["npm", "run", "dev"]
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://localhost:8082/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-        ]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8082/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -156,6 +156,7 @@ services:
     build:
       context: .
       dockerfile: services/school/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:
@@ -174,21 +175,11 @@ services:
         condition: service_healthy
       security:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     ports:
       - ${SCHOOL_PORT:-8083}:8083
     command: ["npm", "run", "dev"]
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://localhost:8083/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-        ]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8083/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -198,6 +189,7 @@ services:
     build:
       context: .
       dockerfile: services/user-profile/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:
@@ -215,21 +207,11 @@ services:
         condition: service_healthy
       security:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     ports:
       - ${USER_PROFILE_PORT:-8084}:8084
     command: ["npm", "run", "dev"]
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://localhost:8084/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-        ]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8084/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -239,6 +221,7 @@ services:
     build:
       context: .
       dockerfile: services/academic/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:
@@ -256,21 +239,11 @@ services:
         condition: service_healthy
       security:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     ports:
       - ${ACADEMIC_PORT:-8085}:8085
     command: ["npm", "run", "dev"]
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://localhost:8085/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-        ]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8085/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -280,6 +253,7 @@ services:
     build:
       context: .
       dockerfile: services/attendance/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:
@@ -297,21 +271,11 @@ services:
         condition: service_healthy
       security:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     ports:
       - ${ATTENDANCE_PORT:-8086}:8086
     command: ["npm", "run", "dev"]
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://localhost:8086/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-        ]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8086/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -321,6 +285,7 @@ services:
     build:
       context: .
       dockerfile: services/scheduling/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:
@@ -338,21 +303,11 @@ services:
         condition: service_healthy
       security:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     ports:
       - ${SCHEDULING_PORT:-8087}:8087
     command: ["npm", "run", "dev"]
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://localhost:8087/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-        ]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8087/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -362,6 +317,7 @@ services:
     build:
       context: .
       dockerfile: services/reporting/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:
@@ -379,21 +335,11 @@ services:
         condition: service_healthy
       security:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     ports:
       - ${REPORTING_PORT:-8088}:8088
     command: ["npm", "run", "dev"]
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://localhost:8088/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-        ]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8088/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -403,6 +349,7 @@ services:
     build:
       context: .
       dockerfile: services/notification/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:
@@ -420,21 +367,11 @@ services:
         condition: service_healthy
       security:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     ports:
       - ${NOTIFICATION_PORT:-8089}:8089
     command: ["npm", "run", "dev"]
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://localhost:8089/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-        ]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8089/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -444,6 +381,7 @@ services:
     build:
       context: .
       dockerfile: services/document/Dockerfile
+    restart: unless-stopped
     env_file:
       - ./.env
     environment:
@@ -467,28 +405,23 @@ services:
         condition: service_healthy
       security:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     ports:
       - ${DOCUMENT_PORT:-8090}:8090
     command: ["npm", "run", "dev"]
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://localhost:8090/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-        ]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8090/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 20s
 
+  # ── API Gateway ──────────────────────────────────────────────────────────────
+  # Depends only on migrations being complete — not on individual services.
+  # Kong handles upstream unavailability gracefully (returns 502 per route,
+  # other routes keep working). Services come up asynchronously behind it.
   kong:
     image: kong:3.7
+    restart: unless-stopped
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
@@ -506,28 +439,8 @@ services:
     volumes:
       - ./infra/kong/kong.yml:/kong/declarative/kong.yml:ro
     depends_on:
-      auth:
-        condition: service_healthy
-      student:
-        condition: service_healthy
-      school:
-        condition: service_healthy
-      user-profile:
-        condition: service_healthy
-      academic:
-        condition: service_healthy
-      attendance:
-        condition: service_healthy
-      scheduling:
-        condition: service_healthy
-      reporting:
-        condition: service_healthy
-      notification:
-        condition: service_healthy
-      document:
-        condition: service_healthy
-      security:
-        condition: service_healthy
+      db-migrator:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "kong", "health"]
       interval: 10s
