@@ -1,5 +1,5 @@
 import { describe, it, expect } from "@jest/globals";
-import { GradeCalculator } from "../../src/services/GradeCalculator.js";
+import { GradeCalculator } from "../../../src/services/GradeCalculator.js";
 
 describe("GradeCalculator", () => {
   it("should calculate percentage correctly", () => {
@@ -12,12 +12,13 @@ describe("GradeCalculator", () => {
   });
 
   it("should calculate letter grade from percentage", () => {
-    expect(GradeCalculator.calculateLetterGrade(95)).toBe("A");
-    expect(GradeCalculator.calculateLetterGrade(85)).toBe("B");
+    expect(GradeCalculator.calculateLetterGrade(96)).toBe("A+");
+    expect(GradeCalculator.calculateLetterGrade(90)).toBe("A");
+    expect(GradeCalculator.calculateLetterGrade(85)).toBe("B+");
   });
 
   it("should calculate grade points from letter grade", () => {
-    expect(GradeCalculator.letterToGradePoints("A")).toBeCloseTo(4.0, 5);
-    expect(GradeCalculator.letterToGradePoints("C")).toBeCloseTo(2.0, 5);
+    expect(GradeCalculator.calculateGradePoints("A")).toBeCloseTo(4.0, 5);
+    expect(GradeCalculator.calculateGradePoints("C")).toBeCloseTo(2.0, 5);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect, jest } from "@jest/globals";
 
-jest.unstable_mockModule("../../src/db.js", () => ({
+jest.unstable_mockModule("../../../src/db.js", () => ({
   pool: {
     query: jest.fn().mockResolvedValue({
       rows: [
@@ -10,7 +10,7 @@ jest.unstable_mockModule("../../src/db.js", () => ({
   },
 }));
 
-const { WeeklyViewGenerator } = await import("../../src/services/WeeklyViewGenerator.js");
+const { WeeklyViewGenerator } = await import("../../../src/services/WeeklyViewGenerator.js");
 
 describe("WeeklyViewGenerator", () => {
   it("should group entries by day of week", async () => {

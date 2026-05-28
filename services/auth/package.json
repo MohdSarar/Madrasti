@@ -8,9 +8,9 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "lint": "eslint \"src/**/*.ts\" \"scripts/**/*.ts\" \"test/**/*.ts\"",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js  --runInBand",
+    "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand",
     "pretest:coverage": "npm run migrate",
-    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js  --runInBand --coverage",
+    "test:coverage": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand --coverage",
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seed.ts",
     "dev:create-super-admin": "tsx scripts/dev_create_super_admin.ts"

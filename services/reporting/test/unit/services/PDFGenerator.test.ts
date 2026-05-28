@@ -1,5 +1,5 @@
 import { describe, it, expect } from "@jest/globals";
-import { PDFGenerator } from "../../src/services/PDFGenerator.js";
+import { PDFGenerator } from "../../../src/services/PDFGenerator.js";
 
 describe("PDFGenerator", () => {
   it("should generate a PDF buffer", async () => {

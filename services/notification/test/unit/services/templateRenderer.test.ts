@@ -1,5 +1,5 @@
 import { describe, it, expect } from "@jest/globals";
-import { renderTemplate } from "../../src/services/templateRenderer.js";
+import { renderTemplate } from "../../../src/services/templateRenderer.js";
 
 describe("TemplateRenderer", () => {
   it("should replace {{variable}} placeholders correctly", () => {

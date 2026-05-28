@@ -10,7 +10,7 @@
                     "build":  "tsc -p tsconfig.json",
                     "start":  "node dist/index.js",
                     "lint":  "eslint \"src/**/*.ts\"",
-                    "test":  "jest",
+                    "test":  "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js --runInBand",
                     "test:unit":  "jest --runInBand --testPathPattern=test/unit",
                     "test:integration":  "jest --runInBand --testPathPattern=test/integration",
                     "test:coverage":  "jest --coverage"

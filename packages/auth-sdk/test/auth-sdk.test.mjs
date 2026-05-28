@@ -40,7 +40,7 @@ test("requirePermission: allows wildcard permission", async () => {
   const req = { auth: { sub: "u1", email: null, role: "school_admin", school_id: "s1", permissions: ["*"] } };
   const res = mockRes();
   let nextCalled = false;
-  await requirePermission({ permission: "students:write" })(req, res, () => { nextCalled = true; });
+  await requirePermission({ permissions: ["students:write"] })(req, res, () => { nextCalled = true; });
   assert.equal(nextCalled, true);
   assert.equal(res.statusCode, 200);
 });
@@ -59,7 +59,7 @@ test("authenticate: rejects when no Authorization header", async () => {
 test("authenticate: accepts cached auth context", async () => {
   const redis = {
     get: async () =>
-      JSON.stringify({ valid: true, user: { id: "u1", email: "a@b.com", role: "school_admin", school_id: "s1", permissions: ["*"] } }),
+      JSON.stringify({ sub: "u1", email: "a@b.com", role: "school_admin", school_id: "s1", permissions: ["*"] }),
     setEx: async () => {},
   };
 

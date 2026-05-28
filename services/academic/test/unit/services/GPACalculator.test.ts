@@ -1,10 +1,10 @@
 import { describe, it, expect, jest } from "@jest/globals";
 
 // Mock db + redis to keep unit tests deterministic
-jest.unstable_mockModule("../../src/db.js", () => ({
+jest.unstable_mockModule("../../../src/db.js", () => ({
   pool: { query: jest.fn().mockResolvedValue({ rows: [] }) },
 }));
-jest.unstable_mockModule("../../src/redis.js", () => ({
+jest.unstable_mockModule("../../../src/redis.js", () => ({
   redis: {
     get: jest.fn().mockResolvedValue(null),
     setEx: jest.fn().mockResolvedValue("OK"),
@@ -12,7 +12,7 @@ jest.unstable_mockModule("../../src/redis.js", () => ({
   },
 }));
 
-const { GPACalculator } = await import("../../src/services/GPACalculator.js");
+const { GPACalculator } = await import("../../../src/services/GPACalculator.js");
 
 describe("GPACalculator", () => {
   it("should return 0 for student with no grades", async () => {

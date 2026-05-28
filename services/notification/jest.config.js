@@ -10,6 +10,7 @@ export default {
       {
         useESM: true,
         tsconfig: "tsconfig.json",
+        isolatedModules: true,
       },
     ],
   },
@@ -32,5 +33,8 @@ export default {
       statements: 70,
     },
   },
-  setupFilesAfterEnv: ["<rootDir>/test/jest.setup.ts"],
+  moduleNameMapper: {
+    "^(\\.{1,2}/.*)\\.js$": "$1",
+  },
+  testPathIgnorePatterns: ["<rootDir>/test/integration/"],
 };

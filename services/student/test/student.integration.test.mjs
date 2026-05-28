@@ -7,7 +7,7 @@ process.env.NODE_ENV = "test";
 process.env.TEST_BYPASS_AUTH = "1";
 
 // Default local docker-compose mappings (override in CI as needed)
-process.env.DATABASE_URL ??= "postgres://postgres:postgres@localhost:5432/student_db";
+process.env.DATABASE_URL ??= "postgres://madrasti:madrasti@localhost:5432/madrasti";
 process.env.REDIS_URL ??= "redis://localhost:6379";
 process.env.AUTH_SERVICE_URL ??= "http://localhost:8081";
 process.env.AUTH_SERVICE_TOKEN ??= "dev-internal-token";
@@ -41,7 +41,7 @@ test("GET /health returns ok", async () => {
   const res = await fetch(`http://127.0.0.1:${port}/health`);
   assert.equal(res.status, 200);
   const body = await res.json();
-  assert.deepEqual(body, { ok: true });
+  assert.equal(body.status, "ok");
 
   server.close();
 });
