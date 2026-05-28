@@ -339,14 +339,15 @@ export function buildApp() {
   app.use(
     (
       err: unknown,
-      _req: express.Request,
+      req: express.Request,
       res: express.Response,
       _next: express.NextFunction
     ) => {
-      logger.error({ err }, "unhandled error");
-      return res
-        .status(500)
-        .json({ code: "INTERNAL_ERROR", message: "Internal server error" });
+      const status = (err as any)?.status ?? (err as any)?.statusCode ?? 500;
+      const code   = (err as any)?.code    ?? "INTERNAL_ERROR";
+      const message = (err as any)?.message ?? "Internal server error";
+      logger.error({ err, method: req.method, path: req.path, status }, "request_error");
+      return res.status(status).json({ code, message });
     }
   );
 

@@ -1,6 +1,6 @@
 _format_version: "3.0"
 
-# Global CORS plugin — applies to all routes
+# ── Global plugins ────────────────────────────────────────────────────────────
 plugins:
   - name: cors
     config:
@@ -13,9 +13,28 @@ plugins:
       max_age: 3600
       preflight_continue: false
 
+  # Global rate limit — protects all upstream services from floods.
+  # local policy is per Kong node; switch to redis policy in multi-node prod.
+  - name: rate-limiting
+    config:
+      minute: 600
+      policy: local
+      limit_by: ip
+      fault_tolerant: true
+      hide_client_headers: false
+
+# ── Services ──────────────────────────────────────────────────────────────────
 services:
   - name: auth
     url: http://auth:8081
+    # Stricter limit on auth routes — prevents credential stuffing / brute-force.
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 20
+          policy: local
+          limit_by: ip
+          fault_tolerant: true
     routes:
       - name: auth-route
         paths: ["/auth"]

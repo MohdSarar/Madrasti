@@ -34,6 +34,37 @@ services:
         limits:
           memory: 256M
 
+  # ── Connection pooler ────────────────────────────────────────────────────────
+  pgbouncer:
+    image: pgbouncer/pgbouncer
+    restart: unless-stopped
+    environment:
+      DATABASES_HOST: postgres
+      DATABASES_PORT: "5432"
+      DATABASES_USER: ${POSTGRES_USER}
+      DATABASES_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASES_DBNAME: ${POSTGRES_DB}
+      PGBOUNCER_LISTEN_PORT: "5432"
+      PGBOUNCER_AUTH_TYPE: any
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: "1000"
+      PGBOUNCER_DEFAULT_POOL_SIZE: "25"
+      PGBOUNCER_MIN_POOL_SIZE: "5"
+      QUIET: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z -w 1 localhost 5432"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
   # ── Migrations ───────────────────────────────────────────────────────────────
   db-migrator:
     image: postgres:16
@@ -69,7 +100,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8081
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
@@ -79,6 +110,8 @@ services:
     depends_on:
       db-migrator:
         condition: service_completed_successfully
+      pgbouncer:
+        condition: service_healthy
       redis:
         condition: service_healthy
     command: ["npm", "run", "start"]
@@ -102,7 +135,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8091
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN}
       SERVICE_NAME: security
@@ -111,6 +144,8 @@ services:
     depends_on:
       db-migrator:
         condition: service_completed_successfully
+      pgbouncer:
+        condition: service_healthy
       redis:
         condition: service_healthy
     command: ["npm", "run", "start"]
@@ -135,12 +170,13 @@ services:
       HOST: 0.0.0.0
       PORT: 8082
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
       SECURITY_SERVICE_URL: http://security:8091
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       TRUST_PROXY: "1"
     depends_on:
       auth:
@@ -168,7 +204,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8083
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
@@ -202,12 +238,13 @@ services:
       HOST: 0.0.0.0
       PORT: 8084
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
       SECURITY_SERVICE_URL: http://security:8091
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       TRUST_PROXY: "1"
     depends_on:
       auth:
@@ -235,7 +272,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8085
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
@@ -269,7 +306,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8086
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
@@ -303,7 +340,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8087
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
@@ -337,7 +374,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8088
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
@@ -371,7 +408,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8089
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
@@ -405,7 +442,7 @@ services:
       HOST: 0.0.0.0
       PORT: 8090
       NODE_ENV: production
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}

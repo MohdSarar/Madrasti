@@ -67,9 +67,12 @@ export function buildApp() {
   });
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    logger.error({ err }, "unhandled error");
-    return res.status(500).json({ code: "INTERNAL_ERROR", message: "Internal server error" });
+  app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const status = err?.status ?? err?.statusCode ?? 500;
+    const code = err?.code ?? "INTERNAL_ERROR";
+    const message = err?.message ?? "Internal server error";
+    logger.error({ err, method: req.method, path: req.path, status }, "request_error");
+    return res.status(status).json({ code, message });
   });
 
   return app;

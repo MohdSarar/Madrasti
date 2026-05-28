@@ -31,9 +31,12 @@ export function buildApp() {
 
   app.use(buildRouter());
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    logger.error({ err }, "unhandled_error");
-    res.status(500).json({ success: false, error: { code: "INTERNAL", message: "Internal error" } });
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
+    const status = err?.status ?? err?.statusCode ?? 500;
+    const code = err?.code ?? "INTERNAL";
+    const message = err?.message ?? "Internal error";
+    logger.error({ err, method: req.method, path: req.path, status }, "request_error");
+    res.status(status).json({ success: false, error: { code, message } });
   });
 
   return app;

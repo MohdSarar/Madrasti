@@ -30,6 +30,35 @@ services:
       timeout: 3s
       retries: 20
 
+  # ── Connection pooler ────────────────────────────────────────────────────────
+  # 11 services × ~5 connections = 55 raw connections without pooling.
+  # PgBouncer in transaction mode multiplexes all of them into ~20 server connections.
+  pgbouncer:
+    image: pgbouncer/pgbouncer
+    restart: unless-stopped
+    environment:
+      DATABASES_HOST: postgres
+      DATABASES_PORT: "5432"
+      DATABASES_USER: ${POSTGRES_USER:-madrasti}
+      DATABASES_PASSWORD: ${POSTGRES_PASSWORD:-madrasti}
+      DATABASES_DBNAME: ${POSTGRES_DB:-madrasti}
+      PGBOUNCER_LISTEN_PORT: "5432"
+      PGBOUNCER_AUTH_TYPE: any
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: "500"
+      PGBOUNCER_DEFAULT_POOL_SIZE: "20"
+      PGBOUNCER_MIN_POOL_SIZE: "5"
+      QUIET: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z -w 1 localhost 5432"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
   # ── Migrations ───────────────────────────────────────────────────────────────
   # Runs all service SQL files in order at every `docker compose up`.
   # All files use IF NOT EXISTS so re-running is idempotent.
@@ -68,7 +97,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8081
-      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@postgres:5432/${POSTGRES_DB:-madrasti}
+      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@pgbouncer:5432/${POSTGRES_DB:-madrasti}
       REDIS_URL: redis://redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
@@ -77,6 +106,8 @@ services:
     depends_on:
       db-migrator:
         condition: service_completed_successfully
+      pgbouncer:
+        condition: service_healthy
       redis:
         condition: service_healthy
     ports:
@@ -99,7 +130,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: ${SECURITY_PORT:-8091}
-      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@postgres:5432/${POSTGRES_DB:-madrasti}
+      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@pgbouncer:5432/${POSTGRES_DB:-madrasti}
       REDIS_URL: redis://redis:6379
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
       SERVICE_NAME: security
@@ -107,6 +138,8 @@ services:
     depends_on:
       db-migrator:
         condition: service_completed_successfully
+      pgbouncer:
+        condition: service_healthy
       redis:
         condition: service_healthy
     ports:
@@ -130,7 +163,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8082
-      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@postgres:5432/${POSTGRES_DB:-madrasti}
+      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@pgbouncer:5432/${POSTGRES_DB:-madrasti}
       REDIS_URL: redis://redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
@@ -162,7 +195,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8083
-      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@postgres:5432/${POSTGRES_DB:-madrasti}
+      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@pgbouncer:5432/${POSTGRES_DB:-madrasti}
       REDIS_URL: redis://redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
@@ -195,7 +228,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8084
-      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@postgres:5432/${POSTGRES_DB:-madrasti}
+      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@pgbouncer:5432/${POSTGRES_DB:-madrasti}
       REDIS_URL: redis://redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
@@ -227,7 +260,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8085
-      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@postgres:5432/${POSTGRES_DB:-madrasti}
+      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@pgbouncer:5432/${POSTGRES_DB:-madrasti}
       REDIS_URL: redis://redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
@@ -259,7 +292,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8086
-      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@postgres:5432/${POSTGRES_DB:-madrasti}
+      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@pgbouncer:5432/${POSTGRES_DB:-madrasti}
       REDIS_URL: redis://redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
@@ -291,7 +324,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8087
-      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@postgres:5432/${POSTGRES_DB:-madrasti}
+      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@pgbouncer:5432/${POSTGRES_DB:-madrasti}
       REDIS_URL: redis://redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
@@ -323,7 +356,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8088
-      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@postgres:5432/${POSTGRES_DB:-madrasti}
+      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@pgbouncer:5432/${POSTGRES_DB:-madrasti}
       REDIS_URL: redis://redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
@@ -355,7 +388,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8089
-      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@postgres:5432/${POSTGRES_DB:-madrasti}
+      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@pgbouncer:5432/${POSTGRES_DB:-madrasti}
       REDIS_URL: redis://redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
@@ -387,7 +420,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8090
-      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@postgres:5432/${POSTGRES_DB:-madrasti}
+      DATABASE_URL: postgres://${POSTGRES_USER:-madrasti}:${POSTGRES_PASSWORD:-madrasti}@pgbouncer:5432/${POSTGRES_DB:-madrasti}
       REDIS_URL: redis://redis:6379
       AUTH_SERVICE_URL: http://auth:8081
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
