@@ -65,3 +65,14 @@ export async function getSessionByToken(refreshToken: string): Promise<SessionRo
 export async function deleteAllForUser(userId: string): Promise<void> {
   await pool.query("DELETE FROM user_sessions WHERE user_id=$1", [userId]);
 }
+
+export async function deleteOldestSessions(userId: string, keepCount: number): Promise<void> {
+  await pool.query(
+    `DELETE FROM user_sessions WHERE user_id = $1
+     AND id NOT IN (
+       SELECT id FROM user_sessions WHERE user_id = $1
+       ORDER BY created_at DESC LIMIT $2
+     )`,
+    [userId, keepCount]
+  );
+}

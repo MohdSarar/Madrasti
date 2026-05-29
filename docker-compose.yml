@@ -103,6 +103,7 @@ services:
       AUTH_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-dev-internal-token}
       SECURITY_SERVICE_URL: http://security:${SECURITY_PORT:-8091}
       SECURITY_SERVICE_TOKEN: ${SECURITY_SERVICE_TOKEN:-change-me-in-prod}
+      MAX_DEVICES_PER_USER: "10"
     depends_on:
       db-migrator:
         condition: service_completed_successfully

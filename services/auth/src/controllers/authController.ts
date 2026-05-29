@@ -8,7 +8,7 @@ import * as emailVerificationRepo from "../repositories/emailVerificationRepo.js
 import * as sessionRepo from "../repositories/sessionRepo.js";
 import { verifyPassword, hashPassword } from "../services/password.js";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../services/jwt.js";
-import { createSession, updateSessionToken, deleteSessionByToken, getSessionByToken, countActiveSessions } from "../repositories/sessionRepo.js";
+import { createSession, updateSessionToken, deleteSessionByToken, getSessionByToken, countActiveSessions, deleteOldestSessions } from "../repositories/sessionRepo.js";
 import { config } from "../config.js";
 import { isStaffRole } from "../domain/roles.js";
 import { generateTotpSecret, otpauthToQrDataUrl, verifyTotp } from "../services/totp.js";
@@ -121,10 +121,10 @@ const ok = await verifyPassword(user.password_hash, password);
     twoFactorOk = true;
   }
 
-  // Enforce device limit
+  // Enforce device limit — evict oldest sessions instead of blocking
   const active = await countActiveSessions(user.id);
   if (active >= config.maxDevicesPerUser) {
-    throw new HttpError(429, "DEVICE_LIMIT", "Too many active devices");
+    await deleteOldestSessions(user.id, config.maxDevicesPerUser - 1);
   }
 
   // Create refresh session (refresh token signed with session id)
