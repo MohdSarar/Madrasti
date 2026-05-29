@@ -21,7 +21,7 @@ export function getCookie(name: string): string | null {
 }
 
 function getAccessToken(): string | null {
-  return getCookie('access_token');
+  return getCookie('madrasti_at');
 }
 
 function getRefreshToken(): string | null {

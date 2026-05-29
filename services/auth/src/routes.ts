@@ -108,6 +108,7 @@ export function buildRoutes() {
 
   // Auth
   r.post("/v1/auth/login", loginRateLimit as any, validate(schemaLogin), authController.login);
+  r.get("/v1/auth/me", authRateLimit as any, requireAuth, authController.getMe);
   r.post("/v1/auth/refresh", authRateLimit as any, validate(schemaRefresh), authController.refresh);
   r.post("/v1/auth/logout", authRateLimit as any, authController.logout);
 

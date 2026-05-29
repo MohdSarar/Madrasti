@@ -40,9 +40,19 @@ export default function LoginPage() {
     formState: { errors }
   } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) });
 
+  const submitting = React.useRef(false);
+
   async function onSubmit(values: LoginForm) {
-    await login(values);
-    router.push('/');
+    if (submitting.current) return;
+    submitting.current = true;
+    try {
+      await login(values);
+      router.push('/');
+    } catch {
+      // error is already set in the store
+    } finally {
+      submitting.current = false;
+    }
   }
 
   return (
@@ -92,7 +102,11 @@ export default function LoginPage() {
               )}
             </div>
 
-            {error && <p className="text-sm text-danger-500">{error}</p>}
+            {error && (
+              <p className="text-sm text-danger-500">
+                {error.includes('429') ? 'Trop de tentatives. Veuillez patienter.' : error.includes('401') || error.includes('INVALID_CREDENTIALS') ? 'Email ou mot de passe incorrect.' : 'Erreur de connexion. Réessayez.'}
+              </p>
+            )}
 
             <Button type="submit" className="w-full" disabled={isLoading} aria-busy={isLoading}>
               {isLoading ? 'Connexion…' : 'Se connecter'}

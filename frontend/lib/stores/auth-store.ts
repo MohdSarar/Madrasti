@@ -38,18 +38,20 @@ function getCookie(name: string): string | null {
 
 function setTokens(data: LoginResponse) {
   if (!isBrowser()) return;
-  
+
   const expires = new Date();
   expires.setDate(expires.getDate() + 7);
   const exp = expires.toUTCString();
 
-  document.cookie = `access_token=${data.access_token}; path=/; expires=${exp}; SameSite=Lax`;
-  document.cookie = `refresh_token=${data.refresh_token}; path=/; expires=${exp}; SameSite=Lax`;
+  document.cookie = `madrasti_at=${data.access_token}; path=/; expires=${exp}; SameSite=Lax`;
+  if (data.refresh_token) {
+    document.cookie = `refresh_token=${data.refresh_token}; path=/; expires=${exp}; SameSite=Lax`;
+  }
 }
 
 function clearTokens() {
   if (!isBrowser()) return;
-  document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
+  document.cookie = 'madrasti_at=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
   document.cookie = 'refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
 }
 
@@ -88,25 +90,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   checkAuth: async () => {
-    const accessToken = getCookie('access_token');
+    const accessToken = getCookie('madrasti_at');
     if (!accessToken) {
       set({ user: null });
       return;
     }
 
     try {
-      const data = await authClient.get<{ user: LoginResponse['user'] }>('/v1/auth/me');
-      set({ user: data.user ?? null });
+      const data = await authClient.get<LoginResponse['user']>('/v1/auth/me');
+      set({ user: data ?? null });
     } catch (error: any) {
       if (error?.message?.includes('401') || error?.message?.includes('403')) {
         const refreshed = await get().refreshToken();
         if (refreshed) {
           try {
-            const data = await authClient.get<{ user: LoginResponse['user'] }>('/v1/auth/me');
-            set({ user: data.user ?? null });
+            const data = await authClient.get<LoginResponse['user']>('/v1/auth/me');
+            set({ user: data ?? null });
             return;
           } catch {
-            // Si ça échoue toujours, déconnecter
+            // still failing after refresh — clear session
           }
         }
       }
@@ -131,12 +133,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           refresh_token: refreshToken
         });
 
-        if (!data?.access_token || !data?.refresh_token) {
+        if (!data?.access_token) {
           throw new Error('Invalid refresh response');
         }
 
         setTokens(data);
-        set({ user: data.user ?? null });
+        set({ user: data.user ?? get().user });
         return true;
       } catch (error) {
         console.error('[AuthStore] Refresh token failed:', error);
@@ -152,7 +154,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   hydrate: () => {
-    const accessToken = getCookie('access_token');
+    const accessToken = getCookie('madrasti_at');
     if (accessToken) {
       get().checkAuth().catch(() => {
         clearTokens();
@@ -166,7 +168,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
 if (isBrowser()) {
   setInterval(async () => {
-    const accessToken = getCookie('access_token');
+    const accessToken = getCookie('madrasti_at');
     if (accessToken) {
       const store = useAuthStore.getState();
       await store.refreshToken();

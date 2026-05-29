@@ -385,6 +385,19 @@ export const revokeAllSessions = asyncHandler(async (req: Request, res: Response
   return res.json({ success: true });
 });
 
+export const getMe = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.auth) throw new HttpError(401, "AUTH_MISSING", "Not authenticated");
+  const user = await findUserById(req.auth.userId);
+  if (!user || !user.is_active) throw new HttpError(401, "AUTH_INVALID", "User inactive");
+  return res.json({
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    full_name: (user as any).full_name ?? null,
+    school_id: user.school_id ?? null,
+  });
+});
+
 export const getSecuritySettings = asyncHandler(async (_req: Request, res: Response) => {
   return res.json({ success: true, data: { lockoutEnabled: true, passwordRotationDays: 90 } });
 });
